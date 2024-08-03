@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <omp.h>
 #include "mmio.h"
 
 
@@ -45,6 +46,25 @@ void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
     mat->val = (double *)malloc(nnz * sizeof(double));
 }
 
+int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
+    int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
+    if (ret!=0) {
+        fprintf(stderr, "Failed to read the matrix from file%s\n", filename);
+        return ret;
+    }
+    return 0;
+}
+
+// Function to print a sparse matrix in COO format
+void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
+    printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
+    if (full) {
+        for (int i = 0; i < mat->nnz; i++) {
+            printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
+        }
+    }
+}
+
 // Function to free the memory allocated for a Sparse Matrix
 void freeSparseMatrix(SparseMatrixCOO *mat) {
     free(mat->I);
@@ -65,47 +85,30 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     SparseMatrixCOO C;
     initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
 
-    int count = 0;
+    int nnz = 0;
+
+    #pragma omp parallel for
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
-                printf("Multiplying A(%d,%d) = %f with B(%d,%d) = %f\n", 
-                        A->I[i], A->J[i], A->val[i], 
-                        B->I[j], B->J[j], B->val[j]);
-                        
-                C.I[count] = A->I[i];
-                C.J[count] = B->J[j];
-                C.val[count] = A->val[i] * B->val[j];
-                count++;
+                
+                #pragma omp critical 
+                {
+                    C.I[nnz] = A->I[i];
+                    C.J[nnz] = B->J[j];
+                    C.val[nnz] = A->val[i] * B->val[j];
+                    nnz++;
+                }
             }
         }
     }
 
-    C.nnz = count; // Adjust nnz to the actual number of non zero elements
-    C.I = (int *)realloc(C.I, count * sizeof(int));
-    C.J = (int *)realloc(C.J, count * sizeof(int));
-    C.val = (double *)realloc(C.val, count * sizeof(double));
+    C.nnz = nnz; // Adjust nnz to the actual number of non zero elements
+    C.I = (int *)realloc(C.I, nnz * sizeof(int));
+    C.J = (int *)realloc(C.J, nnz * sizeof(int));
+    C.val = (double *)realloc(C.val, nnz * sizeof(double));
 
     return C;
-}
-
-// Function to print a sparse matrix in COO format
-void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
-    printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
-    if (full) {
-        for (int i = 0; i < mat->nnz; i++) {
-            printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
-        }
-    }
-}
-
-int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
-    int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
-    if (ret!=0) {
-        fprintf(stderr, "Failed to read the matrix from file%s\n", filename);
-        return ret;
-    }
-    return 0;
 }
 
 int main() {
