@@ -74,7 +74,6 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
     free(mat->val);
 }
 
-// Function to multiply two sparse matrices in COO format
 SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
@@ -84,26 +83,33 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     SparseMatrixCOO C;
     initSparseMatrix(&C, A->M, B->N, 0);
 
-    int capacity = 1024; 
+    int capacity = 1024;
     C.I = (int *)malloc(capacity * sizeof(int));
     C.J = (int *)malloc(capacity * sizeof(int));
     C.val = (double *)malloc(capacity * sizeof(double));
 
-    #pragma omp parallel for
-    for (int i = 0; i < A->nnz; i++) {
-        for (int j = 0; j < B->nnz; j++) {
-            if (A->J[i] == B->I[j]) {
-                int row = A->I[i];
-                int col = B->J[j];
-                double value = A->val[i] * B->val[j];
+    // Use OpenMP to parallelize the outer loop
+    #pragma omp parallel
+    {
+        int *local_I = (int *)malloc(capacity * sizeof(int));
+        int *local_J = (int *)malloc(capacity * sizeof(int));
+        double *local_val = (double *)malloc(capacity * sizeof(double));
+        int local_nnz = 0;
+        int local_capacity = capacity;
 
-                #pragma omp critical
-                {
-                    // Check if the entry already exists in the result
+        #pragma omp for nowait
+        for (int i = 0; i < A->nnz; i++) {
+            for (int j = 0; j < B->nnz; j++) {
+                if (A->J[i] == B->I[j]) {
+                    int row = A->I[i];
+                    int col = B->J[j];
+                    double value = A->val[i] * B->val[j];
+
+                    // Check if the entry already exists in the local result
                     bool found = false;
-                    for (int k = 0; k < C.nnz; k++) {
-                        if (C.I[k] == row && C.J[k] == col) {
-                            C.val[k] += value;
+                    for (int k = 0; k < local_nnz; k++) {
+                        if (local_I[k] == row && local_J[k] == col) {
+                            local_val[k] += value;
                             found = true;
                             break;
                         }
@@ -111,21 +117,52 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
 
                     // If it doesn't exist, add a new entry
                     if (!found) {
-                        if (C.nnz == capacity) {
-                            // Dynamically allocate new memory for the new entries
-                            capacity *= 2;
-                            C.I = (int *)realloc(C.I, capacity * sizeof(int));
-                            C.J = (int *)realloc(C.J, capacity * sizeof(int));
-                            C.val = (double *)realloc(C.val, capacity * sizeof(double));
+                        if (local_nnz == local_capacity) {
+                            local_capacity *= 2;
+                            local_I = (int *)realloc(local_I, local_capacity * sizeof(int));
+                            local_J = (int *)realloc(local_J, local_capacity * sizeof(int));
+                            local_val = (double *)realloc(local_val, local_capacity * sizeof(double));
                         }
-                        C.I[C.nnz] = row;
-                        C.J[C.nnz] = col;
-                        C.val[C.nnz] = value;
-                        C.nnz++;
+                        local_I[local_nnz] = row;
+                        local_J[local_nnz] = col;
+                        local_val[local_nnz] = value;
+                        local_nnz++;
                     }
                 }
             }
         }
+
+        // Use a critical section to merge local results into the global result
+        #pragma omp critical
+        {
+            for (int k = 0; k < local_nnz; k++) {
+                bool found = false;
+                for (int l = 0; l < C.nnz; l++) {
+                    if (C.I[l] == local_I[k] && C.J[l] == local_J[k]) {
+                        C.val[l] += local_val[k];
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    if (C.nnz == capacity) {
+                        capacity *= 2;
+                        C.I = (int *)realloc(C.I, capacity * sizeof(int));
+                        C.J = (int *)realloc(C.J, capacity * sizeof(int));
+                        C.val = (double *)realloc(C.val, capacity * sizeof(double));
+                    }
+                    C.I[C.nnz] = local_I[k];
+                    C.J[C.nnz] = local_J[k];
+                    C.val[C.nnz] = local_val[k];
+                    C.nnz++;
+                }
+            }
+        }
+
+        free(local_I);
+        free(local_J);
+        free(local_val);
     }
 
     // Shrink the arrays to the actual size needed
