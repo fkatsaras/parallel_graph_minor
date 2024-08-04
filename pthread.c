@@ -135,6 +135,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     SparseMatrixCOO C;
     initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
 
+    C.nnz = 0;
+
     pthread_t threads[MAX_THREADS];
     ThreadData thread_data[MAX_THREADS];
     int elements_per_thread = (A->nnz + MAX_THREADS - 1) / MAX_THREADS; // Divide work among threads
