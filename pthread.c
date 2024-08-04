@@ -3,9 +3,10 @@
 #include <string.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <time.h>
 #include "mmio.h"
 
-#define MAX_THREADS 2
+#define MAX_THREADS 4
 
 typedef struct SparseMatrixCOO
 {
@@ -84,7 +85,7 @@ void* multiplyPart(void *arg) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
 
-                printf("\nFound matching elemets: A(%d , %d) * B(%d, %d) -> %f * %f",A->I[i], A->J[i], B->I[j], B->J[j], A->val[i], B->val[j]);
+                printf("\nTHread %d : Found matching elemets: A(%d , %d) * B(%d, %d) -> %f * %f", data->thread_id, A->I[i], A->J[i], B->I[j], B->J[j], A->val[i], B->val[j]);
                 int row = A->I[i];
                 int col = B->J[j];
                 double value = A->val[i] * B->val[j];
@@ -133,9 +134,9 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     }
 
     SparseMatrixCOO C;
-    initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
+    initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz); // Allocating enough memory for the values of C
 
-    C.nnz = 0;
+    C.nnz = 0; // Initializing C nnz to 0 so the correct entries are added
 
     pthread_t threads[MAX_THREADS];
     ThreadData thread_data[MAX_THREADS];
@@ -173,7 +174,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
 
     printf("Non-zero elements in C before realloc: %d\n", C.nnz);
     for (int i = 0; i < C.nnz; i++) {
-        printf("C.I[%d] = %d, C.J[%d] = %d, C.val[%d] = %f\n", i, C.I[i], i, C.J[i], i, C.val[i]);
+        printf("C.I[%d] , C.J[%d], val = %f\n", C.I[i], C.J[i], C.val[i]);
     }
 
     C.I = (int *)realloc(C.I, C.nnz * sizeof(int));
@@ -210,19 +211,28 @@ int main() {
     int numThreads = 2;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("A.mtx", &A) != 0) {
+    if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("B.mtx", &B) != 0) {
+    if (readSparseMatrix("GD97_b/GD97_b.mtx", &B) != 0) {
         return EXIT_FAILURE;
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
 
     // Multiply A and B
     C = multiplySparseMatrixParallel(&A, &B);
 
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Execution time: %f seconds\n", cpu_time_used);
+
     // Print the result
-    printSparseMatrix(&C, 1);
+    printSparseMatrix(&C, 0);
 
     // Free the memory
     freeSparseMatrix(&A);
