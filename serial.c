@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 #include "mmio.h"
 
 
@@ -140,19 +141,28 @@ int main() {
     SparseMatrixCOO A, B, C;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("A.mtx", &A) != 0) {
+    if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("B.mtx", &B) != 0) {
+    if (readSparseMatrix("GD97_b/GD97_b.mtx", &B) != 0) {
         return EXIT_FAILURE;
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
 
     // Multiply A and B
     C = multiplySparseMatrix(&A, &B);
 
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Execution time: %f seconds\n", cpu_time_used);
+
     // Print the result
-    printSparseMatrix(&C, true);
+    printSparseMatrix(&C, false);
 
     // Free the memory
     freeSparseMatrix(&A);

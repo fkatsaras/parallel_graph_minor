@@ -185,6 +185,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
 
     return C;
 }
+
 // Function to print a sparse matrix in COO format
 void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
     printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
@@ -208,8 +209,6 @@ int main() {
 
     SparseMatrixCOO A, B, C;
 
-    int numThreads = 2;
-
     // EXAMPLE USAGE
     if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
         return EXIT_FAILURE;
@@ -232,7 +231,7 @@ int main() {
     printf("Execution time: %f seconds\n", cpu_time_used);
 
     // Print the result
-    printSparseMatrix(&C, 0);
+    printSparseMatrix(&C, false);
 
     // Free the memory
     freeSparseMatrix(&A);
