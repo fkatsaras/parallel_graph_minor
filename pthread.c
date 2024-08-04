@@ -75,21 +75,13 @@ void* multiplyPart(void *arg) {
     int start = data->start;
     int end = data->end;
 
-    printf("Thread %d processing elements", data->thread_id);
-    for (int i = data->start; i < data->end; i++) {
-        printf("\n( %d , %d ) = %f", data->A->I[i], data->A->J[i], data->A->val[i]);
-    }
-
     for (int i = start; i < end; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
 
-                printf("\nFound matching elemets: A(%d , %d) * B(%d, %d) -> %f * %f",A->I[i], A->J[i], B->I[j], B->J[j], A->val[i], B->val[j]);
                 int row = A->I[i];
                 int col = B->J[j];
                 double value = A->val[i] * B->val[j];
-                printf("\tMultiplication result: %f", value);
-                printf("\nC nnz before new element: %d\n\n", C->nnz);
 
                 // Lock before modifying shared data
                 pthread_mutex_lock(data->mutex);
@@ -99,7 +91,6 @@ void* multiplyPart(void *arg) {
                 for (k = 0; k < C->nnz; k++) {
                     if (C->I[k] == row && C->J[k] == col) {
 
-                        printf("Entry already exists ( %d , %d ) = %f : Adding %f to sum\n", row, col, C->val[k], value);
                         C->val[k] += value;
                         break;
                     }
@@ -108,7 +99,6 @@ void* multiplyPart(void *arg) {
                 // If it doesn't exist, add a new entry
                 if (k == C->nnz) {
 
-                    printf("New entry added: ( %d, %d ) = %f\n", row, col, value);
                     C->I[C->nnz] = row;
                     C->J[C->nnz] = col;
                     C->val[C->nnz] = value;
@@ -156,7 +146,6 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         if (thread_data[i].end > A->nnz) thread_data[i].end = A->nnz;
         thread_data[i].mutex = &mutex;
 
-        printf("Creating thread %d to process elements from %d to %d\n", i, thread_data[i].start, thread_data[i].end);
         if (pthread_create(&threads[i], NULL, multiplyPart, (void *)&thread_data[i])) {
             printf("Error creating thread %d\n", i);
             exit(EXIT_FAILURE);
@@ -171,16 +160,9 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
 
     pthread_mutex_destroy(&mutex);
 
-    printf("Non-zero elements in C before realloc: %d\n", C.nnz);
-    for (int i = 0; i < C.nnz; i++) {
-        printf("C.I[%d] = %d, C.J[%d] = %d, C.val[%d] = %f\n", i, C.I[i], i, C.J[i], i, C.val[i]);
-    }
-
     C.I = (int *)realloc(C.I, C.nnz * sizeof(int));
     C.J = (int *)realloc(C.J, C.nnz * sizeof(int));
     C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
-
-    printf("Multiplication complete with %d non-zero elements in the result\n", C.nnz);
 
     return C;
 }
