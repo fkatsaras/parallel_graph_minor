@@ -76,11 +76,6 @@ void* multiplyPart(void *arg) {
     int start = data->start;
     int end = data->end;
 
-    printf("Thread %d processing elements", data->thread_id);
-    for (int i = data->start; i < data->end; i++) {
-        printf("\n( %d , %d ) = %f", data->A->I[i], data->A->J[i], data->A->val[i]);
-    }
-
     for (int i = start; i < end; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
@@ -89,8 +84,6 @@ void* multiplyPart(void *arg) {
                 int row = A->I[i];
                 int col = B->J[j];
                 double value = A->val[i] * B->val[j];
-                printf("\tMultiplication result: %f", value);
-                printf("\nC nnz before new element: %d\n\n", C->nnz);
 
                 // Lock before modifying shared data
                 pthread_mutex_lock(data->mutex);
@@ -100,7 +93,6 @@ void* multiplyPart(void *arg) {
                 for (k = 0; k < C->nnz; k++) {
                     if (C->I[k] == row && C->J[k] == col) {
 
-                        printf("Entry already exists ( %d , %d ) = %f : Adding %f to sum\n", row, col, C->val[k], value);
                         C->val[k] += value;
                         break;
                     }
@@ -109,7 +101,6 @@ void* multiplyPart(void *arg) {
                 // If it doesn't exist, add a new entry
                 if (k == C->nnz) {
 
-                    printf("New entry added: ( %d, %d ) = %f\n", row, col, value);
                     C->I[C->nnz] = row;
                     C->J[C->nnz] = col;
                     C->val[C->nnz] = value;
@@ -157,7 +148,6 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         if (thread_data[i].end > A->nnz) thread_data[i].end = A->nnz;
         thread_data[i].mutex = &mutex;
 
-        printf("Creating thread %d to process elements from %d to %d\n", i, thread_data[i].start, thread_data[i].end);
         if (pthread_create(&threads[i], NULL, multiplyPart, (void *)&thread_data[i])) {
             printf("Error creating thread %d\n", i);
             exit(EXIT_FAILURE);
@@ -181,8 +171,6 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     C.J = (int *)realloc(C.J, C.nnz * sizeof(int));
     C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
 
-    printf("Multiplication complete with %d non-zero elements in the result\n", C.nnz);
-
     return C;
 }
 
@@ -205,18 +193,33 @@ int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
     return 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    // Input the matrix filename arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *matrix_file_A = argv[1];
+    const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
+    if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("GD97_b/GD97_b.mtx", &B) != 0) {
+    if (readSparseMatrix(matrix_file_B, &B) != 0) {
+        freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
 
     clock_t start, end;
     double cpu_time_used;
@@ -230,7 +233,12 @@ int main() {
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
     printf("Execution time: %f seconds\n", cpu_time_used);
 
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Execution time: %f seconds\n", cpu_time_used);
+
     // Print the result
+    printSparseMatrix(&C, false);
     printSparseMatrix(&C, false);
 
     // Free the memory

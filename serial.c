@@ -130,22 +130,32 @@ void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
 int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
     int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
     if (ret!=0) {
-        fprintf(stderr, "Failed to read the matrix from file%s\n", filename);
+        fprintf(stderr, "\tFailed to read the matrix from file %s\n", filename);
         return ret;
     }
     return 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    // Input the matrix filename arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *matrix_file_A = argv[1];
+    const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
+    if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("GD97_b/GD97_b.mtx", &B) != 0) {
+    if (readSparseMatrix(matrix_file_A, &B) != 0) {
+        freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
 
