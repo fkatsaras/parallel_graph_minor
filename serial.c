@@ -1,57 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 #include <time.h>
 #include "mmio.h"
+#include "util.c"
 
-
-typedef struct SparseMatrixCOO
-{
-    /*         
-            M , I
-    +-------------------+
-    | *                 |
-    |    *    *         |
-    |    *  *           | N, J
-    |          *  *   * |
-    |             *     |
-    |      *   *     *  |
-    +-------------------+
-    
-    nnz = *
-    (I[nnz], J[nnz]) = value
-    
-    Legend:
-    N = Rows
-    M = Columns
-    I = Row indices
-    J = Column indices
-   */
-    int M, N, nnz; // Matrix size info
-
-    int *I, *J; // Matrix value info 
-    double *val
-} SparseMatrixCOO;
-
-// Function to initialize a sparse matrix
-void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
-
-    mat->M = M;
-    mat->N = N;
-    mat->nnz = nnz;
-    
-    mat->I = (int *)malloc(nnz * sizeof(int));
-    mat->J = (int *)malloc(nnz * sizeof(int));
-    mat->val = (double *)malloc(nnz * sizeof(double));
-}
-
-// Function to free the memory allocated for a Sparse Matrix
-void freeSparseMatrix(SparseMatrixCOO *mat) {
-    free(mat->I);
-    free(mat->J);
-    free(mat->val);
-}
 
 // Function to multiply two sparse matrices in COO format
 SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
@@ -88,6 +41,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
                 // If it doesn't exist, add a new entry
                 if (!found) {
                     if (C.nnz == capacity) {
+                        // Dynamically allocate new memory for the new entries
                         capacity *= 2;
                         C.I = (int *)realloc(C.I, capacity * sizeof(int));
                         C.J = (int *)realloc(C.J, capacity * sizeof(int));
@@ -108,25 +62,6 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
 
     return C;
-}
-
-// Function to print a sparse matrix in COO format
-void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
-    printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
-    if (full) {
-        for (int i = 0; i < mat->nnz; i++) {
-            printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
-        }
-    }
-}
-
-int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
-    int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
-    if (ret!=0) {
-        fprintf(stderr, "\tFailed to read the matrix from file %s\n", filename);
-        return ret;
-    }
-    return 0;
 }
 
 int main(int argc, char *argv[]) {
