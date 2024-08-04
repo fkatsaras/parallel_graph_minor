@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include "mmio.h"
 
-#define MAX_THREADS 2
+#define MAX_THREADS 4
 
 typedef struct SparseMatrixCOO
 {
@@ -185,26 +185,43 @@ int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
     return 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    // Input the matrix filename arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *matrix_file_A = argv[1];
+    const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
 
-    int numThreads = 2;
-
     // EXAMPLE USAGE
-    if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
+    if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("GD97_b/GD97_b.mtx", &B) != 0) {
+    if (readSparseMatrix(matrix_file_B, &B) != 0) {
+        freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
 
     // Multiply A and B
     C = multiplySparseMatrixParallel(&A, &B);
 
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Execution time: %f seconds\n", cpu_time_used);
+
     // Print the result
-    printSparseMatrix(&C, 0);
+    printSparseMatrix(&C, false);
 
     // Free the memory
     freeSparseMatrix(&A);

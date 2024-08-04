@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 #include "mmio.h"
 
 
@@ -129,30 +130,49 @@ void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
 int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
     int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
     if (ret!=0) {
-        fprintf(stderr, "Failed to read the matrix from file%s\n", filename);
+        fprintf(stderr, "\tFailed to read the matrix from file %s\n", filename);
         return ret;
     }
     return 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    // Input the matrix filename arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *matrix_file_A = argv[1];
+    const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("A.mtx", &A) != 0) {
+    if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("B.mtx", &B) != 0) {
+    if (readSparseMatrix(matrix_file_A, &B) != 0) {
+        freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
 
     // Multiply A and B
     C = multiplySparseMatrix(&A, &B);
 
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Execution time: %f seconds\n", cpu_time_used);
+
     // Print the result
-    printSparseMatrix(&C, true);
+    printSparseMatrix(&C, false);
 
     // Free the memory
     freeSparseMatrix(&A);
