@@ -5,7 +5,9 @@
 #include <pthread.h>
 #include "mmio.h"
 
-#define MAX_THREADS 4
+#define MAX_THREADS 8
+
+int capacity=1024;
 
 typedef struct SparseMatrixCOO
 {
@@ -99,6 +101,13 @@ void* multiplyPart(void *arg) {
                 // If it doesn't exist, add a new entry
                 if (k == C->nnz) {
 
+                    if (C->nnz == capacity) {
+                        // Dynamically allocate new memory for the new entries
+                        capacity *= 2;
+                        C->I = (int *)realloc(C->I, capacity * sizeof(int));
+                        C->J = (int *)realloc(C->J, capacity * sizeof(int));
+                        C->val = (double *)realloc(C->val, capacity * sizeof(double));
+                    }
                     C->I[C->nnz] = row;
                     C->J[C->nnz] = col;
                     C->val[C->nnz] = value;
@@ -123,9 +132,14 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     }
 
     SparseMatrixCOO C;
-    initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
+    initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz); 
 
-    C.nnz = 0;
+    // Initial allocation of a small number of entries
+    C.I = (int *)malloc(capacity * sizeof(int));
+    C.J = (int *)malloc(capacity * sizeof(int));
+    C.val = (double *)malloc(capacity * sizeof(double));
+
+    C.nnz = 0; // Initialize C with 0 nnz entries at first
 
     pthread_t threads[MAX_THREADS];
     ThreadData thread_data[MAX_THREADS];
@@ -207,6 +221,7 @@ int main(int argc, char *argv[]) {
         freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
+
 
     clock_t start, end;
     double cpu_time_used;

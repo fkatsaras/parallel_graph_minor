@@ -55,22 +55,19 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
 
 // Function to multiply two sparse matrices in COO format
 SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
-    // Step 1 : Initialization
     if (A->N != B->M) {
-        printf("Incompatible matrix dimensions for multiplication. \n");
+        printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
 
-    // Step 2 : Multiplication process (Upper bound for non-zero elements nnzA * nnzB)
     SparseMatrixCOO C;
-    initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
+    initSparseMatrix(&C, A->M, B->N, 0);
 
-    // Step 2.1: Using a temporary structure to accumulate values
-    int *temp_I = (int *)malloc(A->nnz * B->nnz * sizeof(int));
-    int *temp_J = (int *)malloc(A->nnz * B->nnz * sizeof(int));
-    double *temp_val = (double *)calloc(A->nnz * B->nnz, sizeof(double)); // initialize to 0
+    int capacity = 1024; 
+    C.I = (int *)malloc(capacity * sizeof(int));
+    C.J = (int *)malloc(capacity * sizeof(int));
+    C.val = (double *)malloc(capacity * sizeof(double));
 
-    int count = 0;
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
@@ -79,40 +76,36 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
                 double value = A->val[i] * B->val[j];
 
                 // Check if the entry already exists in the result
-                int k;
-                for (k = 0; k < count; k++) {
-                    if (temp_I[k] == row && temp_J[k] == col) {
-                        temp_val[k] += value;
+                bool found = false;
+                for (int k = 0; k < C.nnz; k++) {
+                    if (C.I[k] == row && C.J[k] == col) {
+                        C.val[k] += value;
+                        found = true;
                         break;
                     }
                 }
 
                 // If it doesn't exist, add a new entry
-                if (k == count) {
-                    temp_I[count] = row;
-                    temp_J[count] = col;
-                    temp_val[count] = value;
-                    count++;
+                if (!found) {
+                    if (C.nnz == capacity) {
+                        capacity *= 2;
+                        C.I = (int *)realloc(C.I, capacity * sizeof(int));
+                        C.J = (int *)realloc(C.J, capacity * sizeof(int));
+                        C.val = (double *)realloc(C.val, capacity * sizeof(double));
+                    }
+                    C.I[C.nnz] = row;
+                    C.J[C.nnz] = col;
+                    C.val[C.nnz] = value;
+                    C.nnz++;
                 }
             }
         }
     }
 
-    // Step 3: Assign values to result matrix C
-    C.nnz = count;
-    C.I = (int *)realloc(C.I, count * sizeof(int));
-    C.J = (int *)realloc(C.J, count * sizeof(int));
-    C.val = (double *)realloc(C.val, count * sizeof(double));
-
-    for (int i = 0; i < count; i++) {
-        C.I[i] = temp_I[i];
-        C.J[i] = temp_J[i];
-        C.val[i] = temp_val[i];
-    }
-
-    free(temp_I);
-    free(temp_J);
-    free(temp_val);
+    // Shrink the arrays to the actual size needed
+    C.I = (int *)realloc(C.I, C.nnz * sizeof(int));
+    C.J = (int *)realloc(C.J, C.nnz * sizeof(int));
+    C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
 
     return C;
 }

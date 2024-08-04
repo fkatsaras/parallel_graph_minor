@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
+
 #include <omp.h>
 #include "mmio.h"
 
@@ -74,91 +76,103 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
 
 // Function to multiply two sparse matrices in COO format
 SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
-    // Step 1 : Initialization
     if (A->N != B->M) {
-        printf("Incompatible matrix dimensions for multiplication. \n");
+        printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
 
-    // Step 2 : Multiplication process (Upper bound for non-zero elements nnzA * nnzB)
     SparseMatrixCOO C;
-    initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
+    initSparseMatrix(&C, A->M, B->N, 0);
 
-    // Step 2.1: Using a temporary structure to accumulate values
-    int *temp_I = (int *)malloc(A->nnz * B->nnz * sizeof(int));
-    int *temp_J = (int *)malloc(A->nnz * B->nnz * sizeof(int));
-    double *temp_val = (double *)calloc(A->nnz * B->nnz, sizeof(double)); // initialize to 0
+    int capacity = 1024; 
+    C.I = (int *)malloc(capacity * sizeof(int));
+    C.J = (int *)malloc(capacity * sizeof(int));
+    C.val = (double *)malloc(capacity * sizeof(double));
 
-    int count = 0;
-    # pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
+                int row = A->I[i];
+                int col = B->J[j];
+                double value = A->val[i] * B->val[j];
 
-                #pragma omp critical 
+                #pragma omp critical
                 {
-                    int row = A->I[i];
-                    int col = B->J[j];
-                    double value = A->val[i] * B->val[j];
-    
                     // Check if the entry already exists in the result
-                    int k;
-                    for (k = 0; k < count; k++) {
-                        if (temp_I[k] == row && temp_J[k] == col) {
-                            temp_val[k] += value;
+                    bool found = false;
+                    for (int k = 0; k < C.nnz; k++) {
+                        if (C.I[k] == row && C.J[k] == col) {
+                            C.val[k] += value;
+                            found = true;
                             break;
                         }
                     }
-    
+
                     // If it doesn't exist, add a new entry
-                    if (k == count) {
-                        temp_I[count] = row;
-                        temp_J[count] = col;
-                        temp_val[count] = value;
-                        count++;
+                    if (!found) {
+                        if (C.nnz == capacity) {
+                            // Dynamically allocate new memory for the new entries
+                            capacity *= 2;
+                            C.I = (int *)realloc(C.I, capacity * sizeof(int));
+                            C.J = (int *)realloc(C.J, capacity * sizeof(int));
+                            C.val = (double *)realloc(C.val, capacity * sizeof(double));
+                        }
+                        C.I[C.nnz] = row;
+                        C.J[C.nnz] = col;
+                        C.val[C.nnz] = value;
+                        C.nnz++;
                     }
                 }
             }
         }
     }
-    // Step 3: Assign values to result matrix C
-    C.nnz = count;
-    C.I = (int *)realloc(C.I, count * sizeof(int));
-    C.J = (int *)realloc(C.J, count * sizeof(int));
-    C.val = (double *)realloc(C.val, count * sizeof(double));
 
-    for (int i = 0; i < count; i++) {
-        C.I[i] = temp_I[i];
-        C.J[i] = temp_J[i];
-        C.val[i] = temp_val[i];
-    }
-
-    free(temp_I);
-    free(temp_J);
-    free(temp_val);
+    // Shrink the arrays to the actual size needed
+    C.I = (int *)realloc(C.I, C.nnz * sizeof(int));
+    C.J = (int *)realloc(C.J, C.nnz * sizeof(int));
+    C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
 
     return C;
 }
 
+int main(int argc, char *argv[]) {
 
-int main() {
+    // Input the matrix filename arguments
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *matrix_file_A = argv[1];
+    const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("A.mtx", &A) != 0) {
+    if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("B.mtx", &B) != 0) {
+    if (readSparseMatrix(matrix_file_A, &B) != 0) {
+        freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
 
     // Multiply A and B
     C = multiplySparseMatrix(&A, &B);
 
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Execution time: %f seconds\n", cpu_time_used);
+
     // Print the result
-    printSparseMatrix(&C, true);
+    printSparseMatrix(&C, false);
 
     // Free the memory
     freeSparseMatrix(&A);
