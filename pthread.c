@@ -192,11 +192,11 @@ int main() {
     int numThreads = 2;
 
     // EXAMPLE USAGE
-    if (readSparseMatrix("A.mtx", &A) != 0) {
+    if (readSparseMatrix("GD97_b/GD97_b.mtx", &A) != 0) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix("B.mtx", &B) != 0) {
+    if (readSparseMatrix("GD97_b/GD97_b.mtx", &B) != 0) {
         return EXIT_FAILURE;
     }
 
@@ -204,7 +204,7 @@ int main() {
     C = multiplySparseMatrixParallel(&A, &B);
 
     // Print the result
-    printSparseMatrix(&C, 1);
+    printSparseMatrix(&C, 0);
 
     // Free the memory
     freeSparseMatrix(&A);
