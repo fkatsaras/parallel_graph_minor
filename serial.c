@@ -54,7 +54,6 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
 
 // Function to multiply two sparse matrices in COO format
 SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
-
     // Step 1 : Initialization
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication. \n");
@@ -65,26 +64,54 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     SparseMatrixCOO C;
     initSparseMatrix(&C, A->M, B->N, A->nnz * B->nnz);
 
+    // Step 2.1: Using a temporary structure to accumulate values
+    int *temp_I = (int *)malloc(A->nnz * B->nnz * sizeof(int));
+    int *temp_J = (int *)malloc(A->nnz * B->nnz * sizeof(int));
+    double *temp_val = (double *)calloc(A->nnz * B->nnz, sizeof(double)); // initialize to 0
+
     int count = 0;
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
-                printf("Multiplying A(%d,%d) = %f with B(%d,%d) = %f\n", 
-                        A->I[i], A->J[i], A->val[i], 
-                        B->I[j], B->J[j], B->val[j]);
-                        
-                C.I[count] = A->I[i];
-                C.J[count] = B->J[j];
-                C.val[count] = A->val[i] * B->val[j];
-                count++;
+                int row = A->I[i];
+                int col = B->J[j];
+                double value = A->val[i] * B->val[j];
+
+                // Check if the entry already exists in the result
+                int k;
+                for (k = 0; k < count; k++) {
+                    if (temp_I[k] == row && temp_J[k] == col) {
+                        temp_val[k] += value;
+                        break;
+                    }
+                }
+
+                // If it doesn't exist, add a new entry
+                if (k == count) {
+                    temp_I[count] = row;
+                    temp_J[count] = col;
+                    temp_val[count] = value;
+                    count++;
+                }
             }
         }
     }
 
-    C.nnz = count; // Adjust nnz to the actual number of non zero elements
+    // Step 3: Assign values to result matrix C
+    C.nnz = count;
     C.I = (int *)realloc(C.I, count * sizeof(int));
     C.J = (int *)realloc(C.J, count * sizeof(int));
     C.val = (double *)realloc(C.val, count * sizeof(double));
+
+    for (int i = 0; i < count; i++) {
+        C.I[i] = temp_I[i];
+        C.J[i] = temp_J[i];
+        C.val[i] = temp_val[i];
+    }
+
+    free(temp_I);
+    free(temp_J);
+    free(temp_val);
 
     return C;
 }
