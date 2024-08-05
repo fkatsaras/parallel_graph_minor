@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     printf("Execution time: %f seconds\n", cpu_time_used);
 
     // Print the result
-    printSparseMatrix(&C, false);
+    printSparseMatrix(&C, true);
 
     // Free the memory
     freeSparseMatrix(&A);
