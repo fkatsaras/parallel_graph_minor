@@ -63,9 +63,16 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
 void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
     printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
     if (head) {
-        for (int i = 0; i < 10; i++) {
+        if (mat->nnz > 10) {
+            for (int i = 0; i < 10; i++) {
             printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
+            }
         }
+        else {
+            for (int i = 0; i < mat->nnz; i++) {
+            printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
+            }
+        }   
     }
 }
 
