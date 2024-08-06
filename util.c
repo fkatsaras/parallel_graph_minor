@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <pthread.h>
+
 
 typedef struct {
     int row, col;
@@ -195,8 +197,13 @@ void resizeHashTable(HashTable *table);
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
     if (table->size > table->capacity * 0.7) {
-        printf("Resized Hash table\n");
+        printf("I> Resized Hash table\n");
+        clock_t resizeStart, resizeEnd; 
+        resizeStart = clock();
         resizeHashTable(table);
+
+        resizeEnd = clock();
+        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
     }
 
     HashKey key = { row, col };

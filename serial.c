@@ -74,11 +74,13 @@ int main(int argc, char *argv[]) {
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("I> Total execution time: %f seconds\n", cpu_time_used);
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     // Print the result
     printSparseMatrix(&C, true);
+
+    printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
+
 
     // Free the memory
     freeSparseMatrix(&A);
