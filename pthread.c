@@ -1,9 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
-#include "mmio.h"
 #include "util.c"
 
 #define MAX_THREADS 4

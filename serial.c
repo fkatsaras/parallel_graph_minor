@@ -1,8 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include "mmio.h"
+
 #include "util.c"
 
 // Function to multiply sparse matrices

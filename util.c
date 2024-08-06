@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
+#include <string.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include <stdint.h>
+
+#include "mmio.h"
 
 
 typedef struct {
@@ -183,6 +189,45 @@ unsigned int djb2Hash(int row, int col, int capacity) {
     hash = ((hash << 5) + hash) ^ col;
     return hash % capacity;
 }
+// MurmurHash3 function for HashKey
+uint32_t murmurHash3(uint32_t key1, uint32_t key2, uint32_t capacity) {
+    uint32_t seed = 42; // Seed can be any arbitrary value
+    uint32_t h1 = seed;
+    uint32_t k1 = key1;
+    uint32_t k2 = key2;
+
+    // Constants from MurmurHash3
+    const uint32_t c1 = 0xcc9e2d51;
+    const uint32_t c2 = 0x1b873593;
+
+    // Mix key1
+    k1 *= c1;
+    k1 = (k1 << 15) | (k1 >> (32 - 15)); // ROTL32
+    k1 *= c2;
+
+    h1 ^= k1;
+    h1 = (h1 << 13) | (h1 >> (32 - 13)); // ROTL32
+    h1 = h1 * 5 + 0xe6546b64;
+
+    // Mix key2
+    k2 *= c1;
+    k2 = (k2 << 15) | (k2 >> (32 - 15)); // ROTL32
+    k2 *= c2;
+
+    h1 ^= k2;
+    h1 = (h1 << 13) | (h1 >> (32 - 13)); // ROTL32
+    h1 = h1 * 5 + 0xe6546b64;
+
+    // Finalization
+    h1 ^= 8; // Length of two 32-bit keys (2 * 4 bytes)
+    h1 ^= h1 >> 16;
+    h1 *= 0x85ebca6b;
+    h1 ^= h1 >> 13;
+    h1 *= 0xc2b2ae35;
+    h1 ^= h1 >> 16;
+
+    return h1 % capacity;
+}
 
 // Initialize the hash table
 void initHashTable(HashTable *table, int capacity) {
@@ -209,6 +254,7 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
     HashKey key = { row, col };
     // unsigned int index = hash(key, table->capacity);
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    // unsigned int index = murmurHash3((uint32_t) key.row, (uint32_t) key.col, (uint32_t) table->capacity);
 
     // Linear probing for collision resolution
     while (table->entries[index].occupied) {
