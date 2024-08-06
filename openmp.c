@@ -6,169 +6,38 @@
 
 #include <omp.h>
 #include "mmio.h"
+#include "util.c"
 
-
-typedef struct SparseMatrixCOO
-{
-    /*         
-            M , I
-    +-------------------+
-    | *                 |
-    |    *    *         |
-    |    *  *           | N, J
-    |          *  *   * |
-    |             *     |
-    |      *   *     *  |
-    +-------------------+
-    
-    nnz = *
-    (I[nnz], J[nnz]) = value
-    
-    Legend:
-    N = Rows
-    M = Columns
-    I = Row indices
-    J = Column indices
-   */
-    int M, N, nnz; // Matrix size info
-
-    int *I, *J; // Matrix value info 
-    double *val
-} SparseMatrixCOO;
-
-// Function to initialize a sparse matrix
-void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
-
-    mat->M = M;
-    mat->N = N;
-    mat->nnz = nnz;
-    
-    mat->I = (int *)malloc(nnz * sizeof(int));
-    mat->J = (int *)malloc(nnz * sizeof(int));
-    mat->val = (double *)malloc(nnz * sizeof(double));
-}
-
-int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
-    int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
-    if (ret!=0) {
-        fprintf(stderr, "Failed to read the matrix from file%s\n", filename);
-        return ret;
-    }
-    return 0;
-}
-
-// Function to print a sparse matrix in COO format
-void printSparseMatrix(SparseMatrixCOO *mat, bool full) {
-    printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
-    if (full) {
-        for (int i = 0; i < mat->nnz; i++) {
-            printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
-        }
-    }
-}
-
-// Function to free the memory allocated for a Sparse Matrix
-void freeSparseMatrix(SparseMatrixCOO *mat) {
-    free(mat->I);
-    free(mat->J);
-    free(mat->val);
-}
-
+// Function to multiply sparse matrices
 SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
 
-    SparseMatrixCOO C;
-    initSparseMatrix(&C, A->M, B->N, 0);
+    int initialCapacity = A->nnz; // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
+    HashTable table;
+    initHashTable(&table, initialCapacity);
 
-    int capacity = 1024;
-    C.I = (int *)malloc(capacity * sizeof(int));
-    C.J = (int *)malloc(capacity * sizeof(int));
-    C.val = (double *)malloc(capacity * sizeof(double));
+    #pragma omp parallel for
+    for (int i = 0; i < A->nnz; i++) {
+        for (int j = 0; j < B->nnz; j++) {
+            if (A->J[i] == B->I[j]) {
+                int row = A->I[i];
+                int col = B->J[j];
+                double value = A->val[i] * B->val[j];
 
-    // Use OpenMP to parallelize the outer loop
-    #pragma omp parallel
-    {
-        int *local_I = (int *)malloc(capacity * sizeof(int));
-        int *local_J = (int *)malloc(capacity * sizeof(int));
-        double *local_val = (double *)malloc(capacity * sizeof(double));
-        int local_nnz = 0;
-        int local_capacity = capacity;
-
-        #pragma omp for nowait
-        for (int i = 0; i < A->nnz; i++) {
-            for (int j = 0; j < B->nnz; j++) {
-                if (A->J[i] == B->I[j]) {
-                    int row = A->I[i];
-                    int col = B->J[j];
-                    double value = A->val[i] * B->val[j];
-
-                    // Check if the entry already exists in the local result
-                    bool found = false;
-                    for (int k = 0; k < local_nnz; k++) {
-                        if (local_I[k] == row && local_J[k] == col) {
-                            local_val[k] += value;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    // If it doesn't exist, add a new entry
-                    if (!found) {
-                        if (local_nnz == local_capacity) {
-                            local_capacity *= 2;
-                            local_I = (int *)realloc(local_I, local_capacity * sizeof(int));
-                            local_J = (int *)realloc(local_J, local_capacity * sizeof(int));
-                            local_val = (double *)realloc(local_val, local_capacity * sizeof(double));
-                        }
-                        local_I[local_nnz] = row;
-                        local_J[local_nnz] = col;
-                        local_val[local_nnz] = value;
-                        local_nnz++;
-                    }
+                #pragma omp critical
+                {
+                    hashTableInsert(&table, row, col, value);
                 }
             }
         }
-
-        // Use a critical section to merge local results into the global result
-        #pragma omp critical
-        {
-            for (int k = 0; k < local_nnz; k++) {
-                bool found = false;
-                for (int l = 0; l < C.nnz; l++) {
-                    if (C.I[l] == local_I[k] && C.J[l] == local_J[k]) {
-                        C.val[l] += local_val[k];
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found) {
-                    if (C.nnz == capacity) {
-                        capacity *= 2;
-                        C.I = (int *)realloc(C.I, capacity * sizeof(int));
-                        C.J = (int *)realloc(C.J, capacity * sizeof(int));
-                        C.val = (double *)realloc(C.val, capacity * sizeof(double));
-                    }
-                    C.I[C.nnz] = local_I[k];
-                    C.J[C.nnz] = local_J[k];
-                    C.val[C.nnz] = local_val[k];
-                    C.nnz++;
-                }
-            }
-        }
-
-        free(local_I);
-        free(local_J);
-        free(local_val);
     }
 
-    // Shrink the arrays to the actual size needed
-    C.I = (int *)realloc(C.I, C.nnz * sizeof(int));
-    C.J = (int *)realloc(C.J, C.nnz * sizeof(int));
-    C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
+    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+    printf("I> Hash Table collision count: %d\n", table.collisionCount);
+    free(table.entries);  // Free the hash table entries
 
     return C;
 }

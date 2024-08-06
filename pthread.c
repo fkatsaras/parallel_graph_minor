@@ -75,7 +75,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     pthread_mutex_destroy(&mutex);
 
     SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
-    printf("Hash Table collision count: %d\n", table.collisionCount);
+    printf("I> Hash Table collision count: %d\n", table.collisionCount);
     free(table.entries);  // Free the hash table entries
 
     return C;
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("Execution time: %f seconds\n", cpu_time_used);
+    printf("I> Execution time: %f seconds\n", cpu_time_used);
 
     // Print the result
     printSparseMatrix(&C, true);
