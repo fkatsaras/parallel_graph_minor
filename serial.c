@@ -5,21 +5,16 @@
 #include "mmio.h"
 #include "util.c"
 
-
-// Function to multiply two sparse matrices in COO format
-SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
+// Function to multiply sparse matrices
+SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B, double *hashToCOOTime) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
 
-    SparseMatrixCOO C;
-    initSparseMatrix(&C, A->M, B->N, 0);
-
-    int capacity = 1024; 
-    C.I = (int *)malloc(capacity * sizeof(int));
-    C.J = (int *)malloc(capacity * sizeof(int));
-    C.val = (double *)malloc(capacity * sizeof(double));
+    int initialCapacity = A->nnz; // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
+    HashTable table;
+    initHashTable(&table, initialCapacity);
 
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
@@ -27,39 +22,21 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
                 int row = A->I[i];
                 int col = B->J[j];
                 double value = A->val[i] * B->val[j];
-
-                // Check if the entry already exists in the result
-                bool found = false;
-                for (int k = 0; k < C.nnz; k++) {
-                    if (C.I[k] == row && C.J[k] == col) {
-                        C.val[k] += value;
-                        found = true;
-                        break;
-                    }
-                }
-
-                // If it doesn't exist, add a new entry
-                if (!found) {
-                    if (C.nnz == capacity) {
-                        // Dynamically allocate new memory for the new entries
-                        capacity *= 2;
-                        C.I = (int *)realloc(C.I, capacity * sizeof(int));
-                        C.J = (int *)realloc(C.J, capacity * sizeof(int));
-                        C.val = (double *)realloc(C.val, capacity * sizeof(double));
-                    }
-                    C.I[C.nnz] = row;
-                    C.J[C.nnz] = col;
-                    C.val[C.nnz] = value;
-                    C.nnz++;
-                }
+                hashTableInsert(&table, row, col, value);
             }
         }
     }
 
-    // Shrink the arrays to the actual size needed
-    C.I = (int *)realloc(C.I, C.nnz * sizeof(int));
-    C.J = (int *)realloc(C.J, C.nnz * sizeof(int));
-    C.val = (double *)realloc(C.val, C.nnz * sizeof(double));
+    clock_t hashStart, hashEnd;
+    hashStart = clock();
+
+    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+
+    hashEnd = clock();
+    *hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
+
+    printf("I> Hash Table collision count: %d\n", table.collisionCount);
+    free(table.entries);  // Free the hash table entries
 
     return C;
 }
@@ -82,22 +59,23 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix(matrix_file_A, &B) != 0) {
+    if (readSparseMatrix(matrix_file_B, &B) != 0) {
         freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
 
     clock_t start, end;
-    double cpu_time_used;
+    double cpu_time_used, hashToCOOTime;
 
     start = clock();
 
     // Multiply A and B
-    C = multiplySparseMatrix(&A, &B);
+    C = multiplySparseMatrix(&A, &B, &hashToCOOTime);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("Execution time: %f seconds\n", cpu_time_used);
+    printf("I> Total execution time: %f seconds\n", cpu_time_used);
+    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     // Print the result
     printSparseMatrix(&C, true);
