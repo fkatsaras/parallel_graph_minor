@@ -105,6 +105,21 @@ void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
     }
 }
 
+// Function to print a sparse matrix in CSR format
+void printSparseMatrixCSR(SparseMatrixCSR *mat, bool head) {
+    printf("SparseMatrixCSR(shape = ( %d , %d ), nz = %d )\n", mat->M, mat->N, mat->nz);
+    int count = 0;
+    for (int i = 0; i < mat->M; i++) {
+        for (int j = mat->I_ptr[i]; j < mat->I_ptr[i + 1]; j++) {
+            if (head && count >= 10) {
+                return;
+            }
+            printf("\t( %d , %d ) = %f\n", i, mat->J[j], mat->val[j]);
+            count++;
+        }
+    }
+}
+
 int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
     int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
     if (ret!=0) {
