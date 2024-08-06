@@ -38,9 +38,14 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     HashTable table;
     initHashTable(&table, initialCapacity);
 
+    // Initialize threads and calculate workload
     pthread_t threads[numThreads];
     ThreadData threadData[numThreads];
     int chunkSize = (A->nnz + numThreads - 1) / numThreads;
+
+    // Initialize mutex
+    pthread_mutex_t mutex;
+    pthread_mutex_init(&mutex, NULL);
 
     for (int i = 0; i < numThreads; i++) {
         threadData[i].A = A;
@@ -51,10 +56,13 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         if (threadData[i].end > A->nnz) {
             threadData[i].end = A->nnz;
         }
-
+        // Assign the mutex to each thread
+        threadData[i].mutex = mutex;
+        // Create thread and assign work
         pthread_create(&threads[i], NULL, threadMultiply, &threadData[i]);
     }
 
+    // Join threads after work has been done
     for (int i = 0; i < numThreads; i++) {
         pthread_join(threads[i], NULL);
     }
