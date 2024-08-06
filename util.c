@@ -1,18 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-// Struct to hold thread information 
-typedef struct {
-    int thread_id;
-    SparseMatrixCOO *A;
-    SparseMatrixCOO *B;
-    SparseMatrixCOO *C;
-    int start;
-    int end;
-    pthread_mutex_t *mutex;
-    HashTable *table;
-} ThreadData;
-
 typedef struct {
     int row, col;
 } HashKey;
@@ -27,6 +15,7 @@ typedef struct {
     HashEntry *entries;
     int capacity;
     int size;
+    int collisionCount;
 } HashTable;
 
 typedef struct SparseMatrixCSR{
@@ -40,7 +29,7 @@ typedef struct SparseMatrixCSR{
     int nz;
 } SparseMatrixCSR;
 
-typedef struct SparseMatrixCOO
+typedef struct
 {
     /*         
             N , J
@@ -67,6 +56,18 @@ typedef struct SparseMatrixCOO
     int *I, *J; // Matrix value info 
     double *val
 } SparseMatrixCOO;
+
+// Struct to hold thread information 
+typedef struct {
+    int thread_id;
+    SparseMatrixCOO *A;
+    SparseMatrixCOO *B;
+    SparseMatrixCOO *C;
+    int start;
+    int end;
+    pthread_mutex_t *mutex;
+    HashTable *table;
+} ThreadData;
 
 // Function to initialize a sparse matrix
 void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
@@ -142,16 +143,36 @@ SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
     return output;
 }
 
-// Hash function for HashKey
+// Default hash function for HashKey
 unsigned int hash(HashKey key, int capacity) {
     unsigned int hashValue = key.row * 31 + key.col;
     return hashValue % capacity;
 }
+
+// FNV1 hash function for HashKey
+unsigned int fnv1aHash(int row, int col, int capacity) {
+    unsigned int hash = 2166136261u;
+    hash ^= row;
+    hash *= 16777619u;
+    hash ^= col;
+    hash *= 16777619u;
+    return hash % capacity;
+}
+
+// DJB2 hash function for HashKey
+unsigned int djb2Hash(int row, int col, int capacity) {
+    unsigned int hash = 5381;
+    hash = ((hash << 5) + hash) ^ row;
+    hash = ((hash << 5) + hash) ^ col;
+    return hash % capacity;
+}
+
 // Initialize the hash table
 void initHashTable(HashTable *table, int capacity) {
     table->capacity = capacity;
     table->size = 0;
     table->entries = (HashEntry *)calloc(capacity, sizeof(HashEntry));
+    table->collisionCount = 0;
 }
 
 void resizeHashTable(HashTable *table);
@@ -159,14 +180,17 @@ void resizeHashTable(HashTable *table);
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
     if (table->size > table->capacity * 0.7) {
+        printf("Resized Hash table\n");
         resizeHashTable(table);
     }
 
     HashKey key = { row, col };
-    unsigned int index = hash(key, table->capacity);
+    // unsigned int index = hash(key, table->capacity);
+    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
 
     // Linear probing for collision resolution
     while (table->entries[index].occupied) {
+        table->collisionCount++;
         if (table->entries[index].key.row == row && table->entries[index].key.col == col) {
             table->entries[index].value += value;
             return;
@@ -198,9 +222,9 @@ void resizeHashTable(HashTable *table) {
 }
 
 // Convert hash table to sparse matrix COO format
-SparseMatrixCOO hashTableToSparseMatrix(HashTable *table) {
+SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
     SparseMatrixCOO C;
-    initSparseMatrix(&C, 0, 0, table->size);
+    initSparseMatrix(&C, M, N, table->size);
     int index = 0;
     for (int i = 0; i < table->capacity; i++) {
         if (table->entries[i].key.row != 0 || table->entries[i].key.col != 0) {

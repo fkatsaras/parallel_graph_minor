@@ -1,0 +1,7 @@
+# Ignore cachegrind out files
+cachegrind.out*
+
+# Ignore executable files
+*.exe
+*.out
+*.x86

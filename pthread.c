@@ -20,7 +20,12 @@ void* threadMultiply(void* arg) {
                 int row = A->I[i];
                 int col = B->J[j];
                 double value = A->val[i] * B->val[j];
+
+                pthread_mutex_lock(data->mutex);  // Lock before modifying shared data
+
                 hashTableInsert(table, row, col, value);
+
+                pthread_mutex_unlock(data->mutex); // Unlock after modifying shared data
             }
         }
     }
@@ -34,7 +39,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         exit(EXIT_FAILURE);
     }
 
-    int initialCapacity = 1024; 
+    int initialCapacity = A->nnz; 
     HashTable table;
     initHashTable(&table, initialCapacity);
 
@@ -57,7 +62,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
             threadData[i].end = A->nnz;
         }
         // Assign the mutex to each thread
-        threadData[i].mutex = mutex;
+        threadData[i].mutex = &mutex;
         // Create thread and assign work
         pthread_create(&threads[i], NULL, threadMultiply, &threadData[i]);
     }
@@ -67,7 +72,10 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         pthread_join(threads[i], NULL);
     }
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(&table);
+    pthread_mutex_destroy(&mutex);
+
+    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+    printf("Hash Table collision count: %d\n", table.collisionCount);
     free(table.entries);  // Free the hash table entries
 
     return C;
