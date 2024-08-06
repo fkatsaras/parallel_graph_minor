@@ -6,7 +6,7 @@
 #include "util.c"
 
 // Function to multiply sparse matrices
-SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
+SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B, double *hashToCOOTime) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
@@ -27,7 +27,14 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
         }
     }
 
+    clock_t hashStart, hashEnd;
+    hashStart = clock();
+
     SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+
+    hashEnd = clock();
+    *hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
+
     printf("I> Hash Table collision count: %d\n", table.collisionCount);
     free(table.entries);  // Free the hash table entries
 
@@ -58,16 +65,17 @@ int main(int argc, char *argv[]) {
     }
 
     clock_t start, end;
-    double cpu_time_used;
+    double cpu_time_used, hashToCOOTime;
 
     start = clock();
 
     // Multiply A and B
-    C = multiplySparseMatrix(&A, &B);
+    C = multiplySparseMatrix(&A, &B, &hashToCOOTime);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("I> Execution time: %f seconds\n", cpu_time_used);
+    printf("I> Total execution time: %f seconds\n", cpu_time_used);
+    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     // Print the result
     printSparseMatrix(&C, true);
