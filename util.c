@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 typedef struct {
     int row, col;
@@ -91,14 +92,9 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
 // Function to print a sparse matrix in COO format
 void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
     printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
-<<<<<<< HEAD
-    if (full) {
-        for (int i = 0; i < 10; i++) {
-=======
     if (head) {
         if (mat->nnz > 10) {
             for (int i = 0; i < 10; i++) {
->>>>>>> hashcsr
             printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
             }
         }
