@@ -78,10 +78,6 @@ int main(int argc, char *argv[]) {
 
     printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 
-    SparseMatrixCSR D = COOtoCSR(A);
-
-    printSparseMatrixCSR(&D);
-
     // Free the memory
     freeSparseMatrix(&A);
     freeSparseMatrix(&B);
