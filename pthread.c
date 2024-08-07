@@ -1,9 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
-#include "mmio.h"
 #include "util.c"
 
 #define MAX_THREADS 4
@@ -122,11 +118,12 @@ int main(int argc, char *argv[]) {
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("I> Execution time: %f seconds\n", cpu_time_used);
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     // Print the result
     printSparseMatrix(&C, true);
+
+    printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 
     // Free the memory
     freeSparseMatrix(&A);

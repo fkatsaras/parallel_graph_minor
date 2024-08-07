@@ -1,6 +1,14 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
+#include <string.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <omp.h>
+
+#include "mmio.h"
+
 
 typedef struct {
     int row, col;
@@ -23,7 +31,7 @@ typedef struct SparseMatrixCSR{
 
     int *I_ptr;
     int *J;
-    long double *val;
+    double *val;
 
     int M;
     int N;
@@ -82,6 +90,17 @@ void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
     mat->val = (double *)malloc(nnz * sizeof(double));
 }
 
+// Function to initialize a CSR matrix
+void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nz) {
+    mat->M = M;
+    mat->N = N;
+    mat->nz = nz;
+    
+    mat->I_ptr = (int *)malloc((M + 1) * sizeof(int));
+    mat->J = (int *)malloc(nz * sizeof(int));
+    mat->val = (double *)malloc(nz * sizeof(double));
+}
+
 // Function to free the memory allocated for a Sparse Matrix
 void freeSparseMatrix(SparseMatrixCOO *mat) {
     free(mat->I);
@@ -107,18 +126,25 @@ void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
 }
 
 // Function to print a sparse matrix in CSR format
-void printSparseMatrixCSR(SparseMatrixCSR *mat, bool head) {
-    printf("SparseMatrixCSR(shape = ( %d , %d ), nz = %d )\n", mat->M, mat->N, mat->nz);
-    int count = 0;
-    for (int i = 0; i < mat->M; i++) {
-        for (int j = mat->I_ptr[i]; j < mat->I_ptr[i + 1]; j++) {
-            if (head && count >= 10) {
-                return;
-            }
-            printf("\t( %d , %d ) = %f\n", i, mat->J[j], mat->val[j]);
-            count++;
-        }
+void printSparseMatrixCSR(SparseMatrixCSR *mat) {
+    printf("CSR Matrix:\n");
+    printf("I_ptr: ");
+    for (int i = 0; i <= mat->M; i++) {
+        printf("%d ", mat->I_ptr[i]);
     }
+    printf("\n");
+
+    printf("J: ");
+    for (int i = 0; i < mat->nz; i++) {
+        printf("%d ", mat->J[i]);
+    }
+    printf("\n");
+
+    printf("val: ");
+    for (int i = 0; i < mat->nz; i++) {
+        printf("%f ", mat->val[i]);
+    }
+    printf("\n");
 }
 
 int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
@@ -134,13 +160,7 @@ int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
 SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
 
     SparseMatrixCSR output;
-    output.nz = A.nnz;
-    output.M = A.M;
-    output.N = A.N;
-
-    output.I_ptr = (int *) malloc((output.M + 1) * sizeof(int));
-    output.J = (int *) malloc(output.nz * sizeof(int));
-    output.val = (long double *) malloc(output.nz * sizeof(long double));
+    initSparseMatrixCSR(&output, A.M, A.N, A.nnz);
 
     for (int i = 0; i < (output.M + 1); i++){
         output.I_ptr[i] = 0;
@@ -182,6 +202,45 @@ unsigned int djb2Hash(int row, int col, int capacity) {
     hash = ((hash << 5) + hash) ^ col;
     return hash % capacity;
 }
+// MurmurHash3 function for HashKey
+uint32_t murmurHash3(uint32_t key1, uint32_t key2, uint32_t capacity) {
+    uint32_t seed = 42; // Seed can be any arbitrary value
+    uint32_t h1 = seed;
+    uint32_t k1 = key1;
+    uint32_t k2 = key2;
+
+    // Constants from MurmurHash3
+    const uint32_t c1 = 0xcc9e2d51;
+    const uint32_t c2 = 0x1b873593;
+
+    // Mix key1
+    k1 *= c1;
+    k1 = (k1 << 15) | (k1 >> (32 - 15)); // ROTL32
+    k1 *= c2;
+
+    h1 ^= k1;
+    h1 = (h1 << 13) | (h1 >> (32 - 13)); // ROTL32
+    h1 = h1 * 5 + 0xe6546b64;
+
+    // Mix key2
+    k2 *= c1;
+    k2 = (k2 << 15) | (k2 >> (32 - 15)); // ROTL32
+    k2 *= c2;
+
+    h1 ^= k2;
+    h1 = (h1 << 13) | (h1 >> (32 - 13)); // ROTL32
+    h1 = h1 * 5 + 0xe6546b64;
+
+    // Finalization
+    h1 ^= 8; // Length of two 32-bit keys (2 * 4 bytes)
+    h1 ^= h1 >> 16;
+    h1 *= 0x85ebca6b;
+    h1 ^= h1 >> 13;
+    h1 *= 0xc2b2ae35;
+    h1 ^= h1 >> 16;
+
+    return h1 % capacity;
+}
 
 // Initialize the hash table
 void initHashTable(HashTable *table, int capacity) {
@@ -196,13 +255,19 @@ void resizeHashTable(HashTable *table);
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
     if (table->size > table->capacity * 0.7) {
-        printf("Resized Hash table\n");
+        printf("I> Resized Hash table\n");
+        clock_t resizeStart, resizeEnd; 
+        resizeStart = clock();
         resizeHashTable(table);
+
+        resizeEnd = clock();
+        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
     }
 
     HashKey key = { row, col };
     // unsigned int index = hash(key, table->capacity);
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    // unsigned int index = murmurHash3((uint32_t) key.row, (uint32_t) key.col, (uint32_t) table->capacity);
 
     // Linear probing for collision resolution
     while (table->entries[index].occupied) {
