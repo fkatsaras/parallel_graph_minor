@@ -15,15 +15,17 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
 
     #pragma omp parallel for shared(A, B, table) private(i, j, row, col, value)
     for (int i = 0; i < A->nnz; i++) {
-        for (int j = 0; j < B->nnz; j++) {
-            if (A->J[i] == B->I[j]) {
-                int row = A->I[i];
-                int col = B->J[j];
-                double value = A->val[i] * B->val[j];
-
-                #pragma omp critical
-                {
-                    hashTableInsert(&table, row, col, value);
+        #pragma omp for
+        {
+            for (int j = 0; j < B->nnz; j++) {
+                if (A->J[i] == B->I[j]) {
+                    int row = A->I[i];
+                    int col = B->J[j];
+                    double value = A->val[i] * B->val[j];
+                    #pragma omp critical
+                    {
+                        hashTableInsert(&table, row, col, value);
+                    }
                 }
             }
         }
@@ -54,7 +56,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     
-    if (readSparseMatrix(matrix_file_A, &B) != 0) {
+    if (readSparseMatrix(matrix_file_B, &B) != 0) {
         freeSparseMatrix(&A); // Free A if B read fails
         return EXIT_FAILURE;
     }
@@ -72,7 +74,7 @@ int main(int argc, char *argv[]) {
     printf("Execution time: %f seconds\n", cpu_time_used);
 
     // Print the result
-    printSparseMatrix(&C, false);
+    printSparseMatrix(&C, true);
 
     // Free the memory
     freeSparseMatrix(&A);
