@@ -318,3 +318,21 @@ SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
     C.nnz = index;
     return C;
 }
+
+// // Define a function pointer type for functions with no arguments and no return value
+// typedef void (*FuncNoArgs)(void);
+
+// // Function to measure the execution time of a function
+// void measureExecutionTime(const char *message, FuncNoArgs func) {
+//     clock_t start, end;
+//     double executionTime;
+
+//     start = clock();  // Start the timer
+
+//     func();  // Call the function
+
+//     end = clock();  // End the timer
+//     executionTime = ((double) (end - start)) / CLOCKS_PER_SEC;  // Calculate elapsed time
+
+//     printf("%s execution time: %f seconds\n", message, executionTime);
+// }
