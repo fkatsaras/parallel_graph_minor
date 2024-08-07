@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
     SparseMatrixCOO A, B, C;
 
-    // EXAMPLE USAGE
+    // Read from files
     if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }

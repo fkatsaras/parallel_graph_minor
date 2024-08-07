@@ -13,7 +13,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     HashTable table;
     initHashTable(&table, initialCapacity);
 
-    #pragma omp parallel for
+    #pragma omp parallel for shared(A, B, table) private(i, j, row, col, value)
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
@@ -48,8 +48,8 @@ int main(int argc, char *argv[]) {
     const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
-
-    // EXAMPLE USAGE
+    
+    // Read from files
     if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
     }

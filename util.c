@@ -185,6 +185,12 @@ unsigned int hash(HashKey key, int capacity) {
     return hashValue % capacity;
 }
 
+// Secondary hash function for double hashing
+unsigned int secondaryHash(int row, int col, int capacity) {
+    // Use a prime number less than the table capacity
+    return 1 + ((row + col) % (capacity - 1));
+}
+
 // FNV1 hash function for HashKey
 unsigned int fnv1aHash(int row, int col, int capacity) {
     unsigned int hash = 2166136261u;
@@ -254,7 +260,7 @@ void resizeHashTable(HashTable *table);
 
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
-    if (table->size > table->capacity * 0.7) {
+    if (table->size > table->capacity * 0.7) { // Resize table incase 70% is full
         printf("I> Resized Hash table\n");
         clock_t resizeStart, resizeEnd; 
         resizeStart = clock();
@@ -265,18 +271,21 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
     }
 
     HashKey key = { row, col };
+    // Primary hash
     // unsigned int index = hash(key, table->capacity);
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
     // unsigned int index = murmurHash3((uint32_t) key.row, (uint32_t) key.col, (uint32_t) table->capacity);
+    // Secondary hash
+    // unsigned int stepSize = secondaryHash(key.row, key.col, table->capacity);
 
-    // Linear probing for collision resolution
+    // Sum calclation - collision handling
     while (table->entries[index].occupied) {
         table->collisionCount++;
-        if (table->entries[index].key.row == row && table->entries[index].key.col == col) {
+        if (table->entries[index].key.row == row && table->entries[index].key.col == col) { // Check if the product is to be summed
             table->entries[index].value += value;
             return;
         }
-        index = (index + 1) % table->capacity;
+        index = (index + 1) % table->capacity; // Linear probing
     }
 
     table->entries[index].key = key;
