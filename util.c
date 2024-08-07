@@ -31,7 +31,7 @@ typedef struct SparseMatrixCSR{
 
     int *I_ptr;
     int *J;
-    long double *val;
+    double *val;
 
     int M;
     int N;
@@ -90,6 +90,17 @@ void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
     mat->val = (double *)malloc(nnz * sizeof(double));
 }
 
+// Function to initialize a CSR matrix
+void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nz) {
+    mat->M = M;
+    mat->N = N;
+    mat->nz = nz;
+    
+    mat->I_ptr = (int *)malloc((M + 1) * sizeof(int));
+    mat->J = (int *)malloc(nz * sizeof(int));
+    mat->val = (double *)malloc(nz * sizeof(double));
+}
+
 // Function to free the memory allocated for a Sparse Matrix
 void freeSparseMatrix(SparseMatrixCOO *mat) {
     free(mat->I);
@@ -115,18 +126,25 @@ void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
 }
 
 // Function to print a sparse matrix in CSR format
-void printSparseMatrixCSR(SparseMatrixCSR *mat, bool head) {
-    printf("SparseMatrixCSR(shape = ( %d , %d ), nz = %d )\n", mat->M, mat->N, mat->nz);
-    int count = 0;
-    for (int i = 0; i < mat->M; i++) {
-        for (int j = mat->I_ptr[i]; j < mat->I_ptr[i + 1]; j++) {
-            if (head && count >= 10) {
-                return;
-            }
-            printf("\t( %d , %d ) = %f\n", i, mat->J[j], mat->val[j]);
-            count++;
-        }
+void printSparseMatrixCSR(SparseMatrixCSR *mat) {
+    printf("CSR Matrix:\n");
+    printf("I_ptr: ");
+    for (int i = 0; i <= mat->M; i++) {
+        printf("%d ", mat->I_ptr[i]);
     }
+    printf("\n");
+
+    printf("J: ");
+    for (int i = 0; i < mat->nz; i++) {
+        printf("%d ", mat->J[i]);
+    }
+    printf("\n");
+
+    printf("val: ");
+    for (int i = 0; i < mat->nz; i++) {
+        printf("%f ", mat->val[i]);
+    }
+    printf("\n");
 }
 
 int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
@@ -142,13 +160,7 @@ int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
 SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
 
     SparseMatrixCSR output;
-    output.nz = A.nnz;
-    output.M = A.M;
-    output.N = A.N;
-
-    output.I_ptr = (int *) malloc((output.M + 1) * sizeof(int));
-    output.J = (int *) malloc(output.nz * sizeof(int));
-    output.val = (long double *) malloc(output.nz * sizeof(long double));
+    initSparseMatrixCSR(&output, A.M, A.N, A.nnz);
 
     for (int i = 0; i < (output.M + 1); i++){
         output.I_ptr[i] = 0;
