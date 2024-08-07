@@ -29,7 +29,7 @@ void* threadMultiply(void* arg) {
     return NULL;
 }
 
-SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO *B, int numThreads, double *hashToCOOTime) {
+SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO *B, int numThreads) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
@@ -71,14 +71,17 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     pthread_mutex_destroy(&mutex);
 
     clock_t hashStart, hashEnd;
+    double hashToCOOTime;
     hashStart = clock();
 
     SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
 
     hashEnd = clock();
-    *hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
+    hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
 
     printf("I> Hash Table collision count: %d\n", table.collisionCount);
+    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
+
     free(table.entries);  // Free the hash table entries
 
     return C;
@@ -114,12 +117,10 @@ int main(int argc, char *argv[]) {
     start = clock();
 
     // Multiply A and B
-    C = multiplySparseMatrixParallel(&A, &B, MAX_THREADS, &hashToCOOTime);
+    C = multiplySparseMatrixParallel(&A, &B, MAX_THREADS);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
-
     // Print the result
     printSparseMatrix(&C, true);
 
