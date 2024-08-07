@@ -9,9 +9,8 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
         exit(EXIT_FAILURE);
     }
 
-    int initialCapacity = A->nnz; // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
     HashTable table;
-    initHashTable(&table, initialCapacity);
+    initHashTable(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
 
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {

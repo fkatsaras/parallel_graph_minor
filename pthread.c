@@ -34,10 +34,9 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
-
-    int initialCapacity = A->nnz; 
+ 
     HashTable table;
-    initHashTable(&table, initialCapacity);
+    initHashTable(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz);
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
