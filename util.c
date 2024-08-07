@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <omp.h>
 
 #include "mmio.h"
 
