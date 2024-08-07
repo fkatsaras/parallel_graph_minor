@@ -5,17 +5,18 @@
 #define MAX_THREADS 4
 
 void* threadMultiply(void* arg) {
-    ThreadData* data = (ThreadData*)arg;
-    SparseMatrixCOO *A = data->A;
-    SparseMatrixCOO *B = data->B;
+    ThreadCSRData* data = (ThreadCSRData*)arg;
+    SparseMatrixCSR *A = data->A;
+    SparseMatrixCSR *B = data->B;
     HashTable *table = data->table;
 
     for (int i = data->start; i < data->end; i++) {
-        for (int j = 0; j < B->nnz; j++) {
-            if (A->J[i] == B->I[j]) {
-                int row = A->I[i];
-                int col = B->J[j];
-                double value = A->val[i] * B->val[j];
+        for (int aj = A->I_ptr[i]; aj < A->I_ptr[i + 1]; aj++) {
+            int A_col = A->J[aj];
+            for (int bj = B->I_ptr[A_col]; bj < B->I_ptr[A_col + 1]; bj++) {
+                int row = i;
+                int col = B->J[bj];
+                double value = A->val[aj] * B->val[bj];
 
                 pthread_mutex_lock(data->mutex);  // Lock before modifying shared data
 
@@ -29,7 +30,7 @@ void* threadMultiply(void* arg) {
     return NULL;
 }
 
-SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO *B, int numThreads) {
+SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A, SparseMatrixCSR *B, int numThreads) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
@@ -41,8 +42,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
-    ThreadData threadData[numThreads];
-    int chunkSize = (A->nnz + numThreads - 1) / numThreads;
+    ThreadCSRData threadData[numThreads];
+    int chunkSize = (A->M + numThreads - 1) / numThreads;
 
     // Initialize mutex
     pthread_mutex_t mutex;
@@ -54,8 +55,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         threadData[i].table = &table;
         threadData[i].start = i * chunkSize;
         threadData[i].end = (i + 1) * chunkSize;
-        if (threadData[i].end > A->nnz) {
-            threadData[i].end = A->nnz;
+        if (threadData[i].end > A->M) {
+            threadData[i].end = A->M;
         }
         // Assign the mutex to each thread
         threadData[i].mutex = &mutex;
@@ -110,6 +111,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    SparseMatrixCSR D, E;
+    D = COOtoCSR(A);
+    E = COOtoCSR(B);
 
     clock_t start, end;
     double cpu_time_used, hashToCOOTime;
@@ -117,7 +121,7 @@ int main(int argc, char *argv[]) {
     start = clock();
 
     // Multiply A and B
-    C = multiplySparseMatrixParallel(&A, &B, MAX_THREADS);
+    C = multiplySparseMatrixParallel(&D, &E, MAX_THREADS);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;

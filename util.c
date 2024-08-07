@@ -35,7 +35,7 @@ typedef struct SparseMatrixCSR{
 
     int M;
     int N;
-    int nz;
+    int nnz;
 } SparseMatrixCSR;
 
 typedef struct
@@ -66,7 +66,7 @@ typedef struct
     double *val
 } SparseMatrixCOO;
 
-// Struct to hold thread information 
+// Struct to hold thread information in COO format
 typedef struct {
     int thread_id;
     SparseMatrixCOO *A;
@@ -76,7 +76,19 @@ typedef struct {
     int end;
     pthread_mutex_t *mutex;
     HashTable *table;
-} ThreadData;
+} ThreadCOOData;
+
+// Struct to hold thread information in CSR format
+typedef struct {
+    int thread_id;
+    SparseMatrixCSR *A;
+    SparseMatrixCSR *B;
+    SparseMatrixCOO *C;
+    int start;
+    int end;
+    pthread_mutex_t *mutex;
+    HashTable *table;
+} ThreadCSRData;
 
 // Function to initialize a sparse matrix
 void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
@@ -91,19 +103,26 @@ void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
 }
 
 // Function to initialize a CSR matrix
-void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nz) {
+void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nnz) {
     mat->M = M;
     mat->N = N;
-    mat->nz = nz;
+    mat->nnz = nnz;
     
     mat->I_ptr = (int *)malloc((M + 1) * sizeof(int));
-    mat->J = (int *)malloc(nz * sizeof(int));
-    mat->val = (double *)malloc(nz * sizeof(double));
+    mat->J = (int *)malloc(nnz * sizeof(int));
+    mat->val = (double *)malloc(nnz * sizeof(double));
 }
 
 // Function to free the memory allocated for a Sparse Matrix
 void freeSparseMatrix(SparseMatrixCOO *mat) {
     free(mat->I);
+    free(mat->J);
+    free(mat->val);
+}
+
+// Function to free the memory allocated for a CSR Sparse Matrix
+void freeSparseMatrixCSR(SparseMatrixCSR *mat) {
+    free(mat->I_ptr);
     free(mat->J);
     free(mat->val);
 }
@@ -135,13 +154,13 @@ void printSparseMatrixCSR(SparseMatrixCSR *mat) {
     printf("\n");
 
     printf("J: ");
-    for (int i = 0; i < mat->nz; i++) {
+    for (int i = 0; i < mat->nnz; i++) {
         printf("%d ", mat->J[i]);
     }
     printf("\n");
 
     printf("val: ");
-    for (int i = 0; i < mat->nz; i++) {
+    for (int i = 0; i < mat->nnz; i++) {
         printf("%f ", mat->val[i]);
     }
     printf("\n");

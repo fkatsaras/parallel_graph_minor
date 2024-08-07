@@ -3,7 +3,7 @@
 #include "util.c"
 
 // Function to multiply sparse matrices
-SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
+SparseMatrixCOO multiplySparseMatrix(SparseMatrixCSR *A, SparseMatrixCSR *B) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
@@ -13,12 +13,13 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     HashTable table;
     initHashTable(&table, initialCapacity);
 
-    for (int i = 0; i < A->nnz; i++) {
-        for (int j = 0; j < B->nnz; j++) {
-            if (A->J[i] == B->I[j]) {
-                int row = A->I[i];
-                int col = B->J[j];
-                double value = A->val[i] * B->val[j];
+    for (int i = 0; i < A->M; i++) {
+        for (int aj = A->I_ptr[i]; aj < A->I_ptr[i + 1]; aj++) {
+            int A_col = A->J[aj];
+            for (int bj = B->I_ptr[A_col]; bj < B->I_ptr[A_col + 1]; bj++) {
+                int row = i;
+                int col = B->J[bj];
+                double value = A->val[aj] * B->val[bj];
                 hashTableInsert(&table, row, col, value);
             }
         }
@@ -63,13 +64,16 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    SparseMatrixCSR D = COOtoCSR(A);
+    SparseMatrixCSR E = COOtoCSR(B);
+
     clock_t start, end;
     double cpu_time_used;
 
     start = clock();
 
     // Multiply A and B
-    C = multiplySparseMatrix(&A, &B);
+    C = multiplySparseMatrix(&D, &E);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -82,6 +86,9 @@ int main(int argc, char *argv[]) {
     freeSparseMatrix(&A);
     freeSparseMatrix(&B);
     freeSparseMatrix(&C);
+
+    freeSparseMatrixCSR(&D);
+    freeSparseMatrixCSR(&E);
 
     return 0;
 }
