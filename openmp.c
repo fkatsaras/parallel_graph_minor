@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     const char *matrix_file_B = argv[2];
 
     SparseMatrixCOO A, B, C;
-    
+
     // Read from files
     if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
@@ -71,10 +71,10 @@ int main(int argc, char *argv[]) {
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("Execution time: %f seconds\n", cpu_time_used);
-
     // Print the result
     printSparseMatrix(&C, true);
+
+    printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 
     // Free the memory
     freeSparseMatrix(&A);

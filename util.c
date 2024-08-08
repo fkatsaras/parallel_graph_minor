@@ -278,6 +278,9 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
     // Secondary hash
     // unsigned int stepSize = secondaryHash(key.row, key.col, table->capacity);
 
+    unsigned int originalIndex = index; // Variables for quadratic probing
+    unsigned int i = 1;
+
     // Sum calclation - collision handling
     while (table->entries[index].occupied) {
         table->collisionCount++;
@@ -285,7 +288,9 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
             table->entries[index].value += value;
             return;
         }
-        index = (index + 1) % table->capacity; // Linear probing
+        // index = (index + 1) % table->capacity; // Linear probing
+        index = (originalIndex + i * i) % table->capacity; // Quadratic probing
+        i++;
     }
 
     table->entries[index].key = key;
@@ -310,6 +315,18 @@ void resizeHashTable(HashTable *table) {
 
     free(oldEntries);
 }
+
+// Function for merging two HashTables together
+void mergeHashTables(HashTable *globalTable, HashTable *localTable) {
+    for (int i = 0; i < localTable->capacity; i++) {
+        if (localTable->entries[i].occupied) {  // Add up the values of with the same keys
+            HashKey key = localTable->entries[i].key;
+            double value = localTable->entries[i].value;
+            hashTableInsert(globalTable, key.row, key.col, value);
+        }
+    }
+}
+
 
 // Convert hash table to sparse matrix COO format
 SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
