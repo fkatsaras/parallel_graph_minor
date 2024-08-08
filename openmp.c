@@ -9,34 +9,41 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
         exit(EXIT_FAILURE);
     }
 
-    int initialCapacity = A->nnz; // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
-    HashTable table;
-    initHashTable(&table, initialCapacity);
+    int initialCapacity = A->nnz;
+    HashTable globalTable;
+    initHashTable(&globalTable, initialCapacity);
 
-    #pragma omp parallel for shared(A, B, table) private(i, j, row, col, value)
-    for (int i = 0; i < A->nnz; i++) {
-        #pragma omp for
-        {
+    #pragma omp parallel
+    {
+        HashTable localTable;
+        initHashTable(&localTable, initialCapacity);
+
+        #pragma omp for schedule(dynamic)
+        for (int i = 0; i < A->nnz; i++) {
             for (int j = 0; j < B->nnz; j++) {
                 if (A->J[i] == B->I[j]) {
                     int row = A->I[i];
                     int col = B->J[j];
                     double value = A->val[i] * B->val[j];
-                    #pragma omp critical
-                    {
-                        hashTableInsert(&table, row, col, value);
-                    }
+                    hashTableInsert(&localTable, row, col, value);
                 }
             }
         }
+
+        #pragma omp critical
+        {
+            mergeHashTables(&globalTable, &localTable);  // Merge local table into global table
+        }
+        free(localTable.entries);  // Free local hash table entries
     }
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
-    printf("I> Hash Table collision count: %d\n", table.collisionCount);
-    free(table.entries);  // Free the hash table entries
+    SparseMatrixCOO C = hashTableToSparseMatrix(&globalTable, A->M, B->N);
+    printf("I> Hash Table collision count: %d\n", globalTable.collisionCount);
+    free(globalTable.entries);  // Free global hash table entries
 
     return C;
 }
+
 
 int main(int argc, char *argv[]) {
 

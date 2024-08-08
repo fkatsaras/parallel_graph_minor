@@ -75,7 +75,8 @@ typedef struct {
     int start;
     int end;
     pthread_mutex_t *mutex;
-    HashTable *table;
+    HashTable *globalTable;
+    HashTable *localTable;
 } ThreadData;
 
 // Function to initialize a sparse matrix
@@ -317,12 +318,12 @@ void resizeHashTable(HashTable *table) {
 }
 
 // Function for merging two HashTables together
-void mergeHashTables(HashTable *globalTable, HashTable *localTable) {
-    for (int i = 0; i < localTable->capacity; i++) {
-        if (localTable->entries[i].occupied) {  // Add up the values of with the same keys
-            HashKey key = localTable->entries[i].key;
-            double value = localTable->entries[i].value;
-            hashTableInsert(globalTable, key.row, key.col, value);
+void mergeHashTables(HashTable *A, HashTable *B) {
+    for (int i = 0; i < B->capacity; i++) {
+        if (B->entries[i].occupied) {  // Add up the values of with the same keys
+            HashKey key = B->entries[i].key;
+            double value = B->entries[i].value;
+            hashTableInsert(A, key.row, key.col, value);
         }
     }
 }
