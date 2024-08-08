@@ -18,7 +18,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
         HashTable localTable;
         initHashTable(&localTable, initialCapacity);
 
-        #pragma omp for schedule(dynamic)
+        #pragma omp for 
         for (int i = 0; i < A->nnz; i++) {
             for (int j = 0; j < B->nnz; j++) {
                 if (A->J[i] == B->I[j]) {
