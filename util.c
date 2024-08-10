@@ -109,8 +109,8 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
 }
 
 // Function to print a sparse matrix in COO format
-void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
-    printf(" SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", mat->M, mat->N, mat->nnz );
+void printSparseMatrix(const char *name, SparseMatrixCOO *mat, bool head) {
+    printf(" %s : SparseMatrixCOO(shape = ( %d , %d ), nnz = %d )\n", name, mat->M, mat->N, mat->nnz );
     if (head) {
         if (mat->nnz > 10) {
             for (int i = 0; i < 10; i++) {
@@ -122,6 +122,11 @@ void printSparseMatrix(SparseMatrixCOO *mat, bool head) {
             printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
             }
         }   
+    }
+    else {
+        for (int i = 0; i < mat->nnz; i++) {
+            printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
+            }
     }
 }
 
