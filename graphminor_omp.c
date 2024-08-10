@@ -30,17 +30,16 @@ void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numCluste
     // Initialize matrix M 
     initSparseMatrix(M, numClusters, numClusters, 0);
 
-    // Iterate over each non-zero entry in the sparse matrix A
+    // Parallelize the loop over non-zero entries in A
+    #pragma omp parallel for shared(A, B, table) private(i, j, row, col, value)
     for (int idx = 0; idx < A->nnz; idx++) {
         int u = A->I[idx];
         int v = A->J[idx];
         double A_uv = A->val[idx];
-
         // Find the clusters that nodes u and v belong to
         int c_u = Omega->J[u];
         int c_v = Omega->J[v];
-
-        // Use hash table to store the result for (c_u, c_v)
+        // Use local hash table to store the result for (c_u, c_v)
         hashTableInsert(&memo, c_u, c_v, A_uv);
     }
 
@@ -75,7 +74,7 @@ int main (int argc, char *argv[]) {
     // Construct the Omega matrix with random cluster assignments
     constructOmegaMatrix(&Omega, numNodes, numClusters);
 
-    printSparseMatrix("Omega", &Omega, true);
+    printSparseMatrix("Ω", &Omega, true);
 
     // Step 2:
     // Compute the graph minor's adjacency matrix M

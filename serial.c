@@ -64,7 +64,6 @@ int main(int argc, char *argv[]) {
 
     clock_t start, end;
     double cpu_time_used;
-
     start = clock();
 
     // Multiply A and B
@@ -73,7 +72,7 @@ int main(int argc, char *argv[]) {
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
     // Print the result
-    printSparseMatrix(&C, false);
+    printSparseMatrix("C", &C, false);
 
     printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 

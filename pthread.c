@@ -111,8 +111,7 @@ int main(int argc, char *argv[]) {
 
 
     clock_t start, end;
-    double cpu_time_used, hashToCOOTime;
-
+    double cpu_time_used;
     start = clock();
 
     // Multiply A and B
