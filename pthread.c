@@ -38,7 +38,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     HashTable table;
     // initHashTable(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz);
     int capacity = (A->nnz > B->nnz) ? A->nnz : B->nnz;
-    initHashTableLock(&table, capacity, capacity / 10); //Iniialize table along with mutexes
+    initHashTableLock(&table, capacity, capacity / 4); //Iniialize table along with mutexes
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
@@ -84,8 +84,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     // Clean-up
-    free(table.entries);                // Free the hash table entries
-    destroyHashTableLocks(&table);      // Destroy locks
+    cleanupHashTableLock(&table);
 
     return C;
 }

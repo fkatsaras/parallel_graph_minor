@@ -360,11 +360,6 @@ SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
 
 /************************* Hash table functions for fine-grained locking **************************/
 
-// Function to return the lock of a given hash key
-int getLockIndex(unsigned int hashIndex, int lockCount) {
-    return hashIndex % lockCount;
-}
-
 // Function to initialize locks in a hash table
 void initializeLocks(HashTable *table, int lockCount) {
     if (lockCount <= 0) {
@@ -411,22 +406,29 @@ void destroyHashTableLocks(HashTable *table) {
     }
 }
 
+void cleanupHashTableLock(HashTable *table) {
+    destroyHashTableLocks(table);                // Destroy bucket locks
+    pthread_mutex_destroy(&table->resizeLock);    // Destroy resize lock
+    free(table->entries);                        // Free the hash table entries
+}
+
 // Function to resize a hash table with locks if near capacity limit
 void resizeHashTableLock(HashTable *table) {
 
     pthread_mutex_lock(&table->resizeLock);
 
     int oldCapacity = table->capacity;
-    HashEntry *oldEntries = table->entries;
+    HashEntry *oldEntries = table->entries;     // Store old entries
+    pthread_mutex_t *oldLocks = table->locks;   // Store old locks
 
+    // Double the capacity
     table->capacity *= 2;
+    table->lockCount = table->capacity / 4; // New lockcount
+
+    // Allocate new entries and locks
     table->entries = (HashEntry *)calloc(table->capacity, sizeof(HashEntry));
     table->size = 0;
-
     // Reinitialize locks
-    destroyHashTableLocks(table);
-
-    table->lockCount = table->capacity / 10; // New lockcount
     initializeLocks(table, table->lockCount);
 
     // Reinsert old entries back at the resized table
@@ -436,7 +438,9 @@ void resizeHashTableLock(HashTable *table) {
         }
     }
 
+    // Cleanup
     free(oldEntries);
+    free(oldLocks);
     pthread_mutex_unlock(&table->resizeLock);
 }
 
