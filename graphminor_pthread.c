@@ -22,33 +22,69 @@ void constructOmegaMatrix(SparseMatrixCOO *Omega, int numNodes, int numClusters)
     }
 }
 
-// Function to compute the graph minor from a given adjacency matrix and configuration matrix
+// Function that each thread will run
+void *computeGraphMinorThread(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    SparseMatrixCOO *A = data->A;
+    SparseMatrixCOO *Omega = data->B;
+    LockedHashTable *localMemo = data->lockedTable;
+
+    for (int idx = data->start; idx < data->end; idx++) {
+        int u = A->I[idx];
+        int v = A->J[idx];
+        double A_uv = A->val[idx];
+
+        // Find the clusters that nodes u and v belong to
+        int c_u = Omega->J[u];
+        int c_v = Omega->J[v];
+
+        // Use the local hash table to store the result for (c_u, c_v)
+        lockedHashTableInsert(localMemo, c_u, c_v, A_uv);
+    }
+
+    return NULL;
+}
+
+// Updated computeGraphMinor using fine-grained locking
 void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters, SparseMatrixCOO *M) {
-    // Initialize the hash table
-    HashTable memo;
-    initHashTable(&memo, 1024);  // Starting with a capacity of 1024
+    int numThreads = 4;  // Set the number of threads
+    pthread_t threads[numThreads];
+    ThreadData threadData[numThreads];
+    LockedHashTable memo;
+
+    // Initialize the locked hash table
+    initLockedHashTable(&memo, 1024);  // Starting with a capacity of 1024
 
     // Initialize matrix M 
     initSparseMatrix(M, numClusters, numClusters, 0);
 
-    // Parallelize the loop over non-zero entries in A
-    #pragma omp parallel for shared(A, B, table) private(i, j, row, col, value)
-    for (int idx = 0; idx < A->nnz; idx++) {
-        int u = A->I[idx];
-        int v = A->J[idx];
-        double A_uv = A->val[idx];
-        // Find the clusters that nodes u and v belong to
-        int c_u = Omega->J[u];
-        int c_v = Omega->J[v];
-        // Use local hash table to store the result for (c_u, c_v)
-        hashTableInsert(&memo, c_u, c_v, A_uv);
+    // Determine the workload for each thread
+    int chunkSize = A->nnz / numThreads;
+    for (int i = 0; i < numThreads; i++) {
+        int start = i * chunkSize;
+        int end = (i == numThreads - 1) ? A->nnz : (i + 1) * chunkSize;
+
+        // Prepare the thread data
+        threadData[i].A = A;
+        threadData[i].B = Omega;
+        threadData[i].start = start;
+        threadData[i].end = end;
+        threadData[i].lockedTable = &memo;
+
+        // Launch the thread
+        pthread_create(&threads[i], NULL, computeGraphMinorThread, (void *)&threadData[i]);
     }
 
-    // Convert the hash table into the sparse matrix M
-    *M = hashTableToSparseMatrix(&memo, numClusters, numClusters);
+    // Wait for all threads to complete
+    for (int i = 0; i < numThreads; i++) {
+        pthread_join(threads[i], NULL);
+    }
 
-    // Free the hash table memory
-    free(memo.entries);
+    // Convert the locked hash table into the sparse matrix M
+    *M = hashTableToSparseMatrix((HashTable *)&memo, numClusters, numClusters);
+
+    // Free the locked hash table memory
+    freeLockedHashTable(&memo);
 }
 
 int main (int argc, char *argv[]) {

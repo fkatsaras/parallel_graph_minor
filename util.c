@@ -9,6 +9,7 @@
 
 #include "mmio.h"
 
+/******************************** Hash table structs ***************************** */
 
 typedef struct {
     int row, col;
@@ -27,6 +28,7 @@ typedef struct {
     int collisionCount;
 } HashTable;
 
+/******************************** Matrix data structs ***************************** */
 typedef struct SparseMatrixCSR{
 
     int *I_ptr;
@@ -66,6 +68,18 @@ typedef struct
     double *val
 } SparseMatrixCOO;
 
+/******************************** Thread data structs ***************************** */
+
+typedef struct {
+    HashEntry entry;
+    pthread_mutex_t lock;
+} LockedHashEntry;
+
+typedef struct {
+    LockedHashEntry *entries;
+    int capacity;
+} LockedHashTable;
+
 // Struct to hold thread information 
 typedef struct {
     int thread_id;
@@ -76,8 +90,45 @@ typedef struct {
     int end;
     pthread_mutex_t *mutex;
     HashTable *table;
+    LockedHashTable *lockedTable;
 } ThreadData;
 
+// Initialize the locked hash table
+void initLockedHashTable(LockedHashTable *table, int capacity) {
+    table->entries = (LockedHashEntry *)calloc(capacity, sizeof(LockedHashEntry));
+    table->capacity = capacity;
+    for (int i = 0; i < capacity; i++) {
+        pthread_mutex_init(&table->entries[i].lock, NULL);
+    }
+}
+
+// Free the locked hash table
+void freeLockedHashTable(LockedHashTable *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        pthread_mutex_destroy(&table->entries[i].lock);
+    }
+    free(table->entries);
+}
+
+unsigned int fnv1aHash(int row, int col, int capacity);
+
+// Thread-safe insertion into the locked hash table
+void lockedHashTableInsert(LockedHashTable *table, int row, int col, double value) {
+    HashKey key = { row, col };
+    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+
+    pthread_mutex_lock(&table->entries[index].lock);  // Lock the specific bucket
+    if (table->entries[index].entry.occupied && 
+        table->entries[index].entry.key.row == row && 
+        table->entries[index].entry.key.col == col) {
+        table->entries[index].entry.value += value;
+    } else {
+        table->entries[index].entry.key = key;
+        table->entries[index].entry.value = value;
+        table->entries[index].entry.occupied = true;
+    }
+    pthread_mutex_unlock(&table->entries[index].lock);  // Unlock the bucket
+}
 // Function to initialize a sparse matrix
 void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
 
