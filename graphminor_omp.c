@@ -55,12 +55,18 @@ int main (int argc, char *argv[]) {
 
     // Input the matrix filename arguments
     if (argc < 3) {
-        fprintf(stderr, "Usage: %s <matrix_file_A> <num_clusters>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <matrix_file_A> <num_clusters> [-pprint]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *matrix_file_A = argv[1];
     int numClusters = atoi(argv[2]);
+    bool pprint_flag = false;
+
+    // Check for the -pprint flag
+    if (argc == 4 && strcmp(argv[3], "-pprint") == 0) {
+        pprint_flag = true;
+    }
 
     SparseMatrixCOO A, Omega, M;
 
@@ -76,6 +82,10 @@ int main (int argc, char *argv[]) {
     constructOmegaMatrix(&Omega, numNodes, numClusters);
 
     printSparseMatrix("Ω", &Omega, true);
+    // Pretty print the dense matrix if -pprint flag is provided
+    if (pprint_flag) {
+        printDenseMatrix(&Omega);
+    }
 
     // Step 2:
     // Compute the graph minor's adjacency matrix M
@@ -91,6 +101,10 @@ int main (int argc, char *argv[]) {
 
     // Print the result matrix M
     printSparseMatrix("M",&M, true);
+    // Pretty print the dense matrix if -pprint flag is provided
+    if (pprint_flag) {
+        printDenseMatrix(&M);
+    }
     printf("\nI> Total execution time: %f seconds\n", cpu_time_used);
     
     // Free memory

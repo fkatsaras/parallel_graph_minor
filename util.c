@@ -197,6 +197,8 @@ void lockedHashTableInsert(LockedHashTable *table, int row, int col, double valu
     pthread_mutex_unlock(&table->resize_lock);
 }
 
+/******************************** Init sparse matrix functions ***************************** */
+
 // Function to initialize a sparse matrix
 void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
 
@@ -226,6 +228,8 @@ void freeSparseMatrix(SparseMatrixCOO *mat) {
     free(mat->J);
     free(mat->val);
 }
+
+/******************************** Print sparse matrix functions ***************************** */
 
 // Function to print a sparse matrix in COO format
 void printSparseMatrix(const char *name, SparseMatrixCOO *mat, bool head) {
@@ -271,6 +275,59 @@ void printSparseMatrixCSR(SparseMatrixCSR *mat) {
     printf("\n");
 }
 
+// Function to pretty print a matrix for debugging
+void printDenseMatrix(SparseMatrixCOO *matrix) {
+    int M = matrix->M;
+    int N = matrix->N;
+    
+    // Create a temporary dense matrix initialized with zeros
+    double denseMatrix[M][N];
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            denseMatrix[i][j] = 0.0;
+        }
+    }
+
+    // Populate the dense matrix with values from the sparse matrix
+    for (int k = 0; k < matrix->nnz; k++) {
+        int row = matrix->I[k];
+        int col = matrix->J[k];
+        double value = matrix->val[k];
+        denseMatrix[row][col] = value;
+    }
+
+    // Determine the width for each cell
+    int cellWidth = 8;
+
+    // Print the top border
+    printf("+");
+    for (int j = 0; j < N; j++) {
+        printf("%*s", cellWidth + 1, "--------");
+    }
+    printf("+\n");
+
+    // Print the dense matrix with borders and alignment
+    for (int i = 0; i < M; i++) {
+        printf("|");
+        for (int j = 0; j < N; j++) {
+            if (denseMatrix[i][j] == 0.0) {
+                printf("%*s", cellWidth, "*");
+            } else {
+                printf("%*.2f", cellWidth, denseMatrix[i][j]);
+            }
+            printf(" ");
+        }
+        printf("|\n");
+    }
+
+    // Print the bottom border
+    printf("+");
+    for (int j = 0; j < N; j++) {
+        printf("%*s", cellWidth + 1, "--------");
+    }
+    printf("+\n");
+}
+
 int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
     int ret = mm_read_unsymmetric_sparse(filename, &mat->M, &mat->N, &mat->nnz, &mat->val, &mat->I, &mat->J);
     if (ret!=0) {
@@ -302,6 +359,8 @@ SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
 
     return output;
 }
+
+/******************************** Hash table functions ***************************** */
 
 // Default hash function for HashKey
 unsigned int hash(HashKey key, int capacity) {
