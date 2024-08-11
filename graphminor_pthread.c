@@ -47,7 +47,7 @@ void *computeGraphMinorThread(void *arg) {
 
 // Updated computeGraphMinor using fine-grained locking
 void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters, SparseMatrixCOO *M) {
-    int numThreads = 4;  // Set the number of threads
+    int numThreads = 2;  // Set the number of threads
     pthread_t threads[numThreads];
     ThreadData threadData[numThreads];
     LockedHashTable memo;

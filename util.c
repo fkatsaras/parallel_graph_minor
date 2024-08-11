@@ -78,6 +78,9 @@ typedef struct {
 typedef struct {
     LockedHashEntry *entries;
     int capacity;
+    int size;
+    int collisionCount;
+    pthread_mutex_t resize_lock;
 } LockedHashTable;
 
 // Struct to hold thread information 
@@ -95,10 +98,11 @@ typedef struct {
 
 // Initialize the locked hash table
 void initLockedHashTable(LockedHashTable *table, int capacity) {
-    table->entries = (LockedHashEntry *)calloc(capacity, sizeof(LockedHashEntry));
     table->capacity = capacity;
+    table->entries = malloc(capacity * sizeof(LockedHashEntry));
     for (int i = 0; i < capacity; i++) {
-        pthread_mutex_init(&table->entries[i].lock, NULL);
+        table->entries[i].entry.occupied = false;
+        pthread_mutex_init(&table->entries[i].lock, NULL);  // Ensure this is properly initialized
     }
 }
 
@@ -112,23 +116,87 @@ void freeLockedHashTable(LockedHashTable *table) {
 
 unsigned int fnv1aHash(int row, int col, int capacity);
 
+// Resize the locked hash table
+void resizeLockedHashTable(LockedHashTable *table) {
+    int new_capacity = table->capacity * 2;
+    LockedHashEntry *new_entries = (LockedHashEntry *)calloc(new_capacity, sizeof(LockedHashEntry));
+
+    for (int i = 0; i < new_capacity; i++) {
+        pthread_mutex_init(&new_entries[i].lock, NULL);
+    }
+
+    // Rehash all the entries
+    for (int i = 0; i < table->capacity; i++) {
+        if (table->entries[i].entry.occupied) {
+            HashKey key = table->entries[i].entry.key;
+            unsigned int new_index = fnv1aHash(key.row, key.col, new_capacity);
+            unsigned int originalIndex = new_index;
+            unsigned int j = 1;
+
+            while (new_entries[new_index].entry.occupied) {
+                new_index = (originalIndex + j * j) % new_capacity; // Quadratic probing
+                j++;
+            }
+            
+            new_entries[new_index].entry = table->entries[i].entry;
+        }
+    }
+
+    // Swap old and new entries
+    freeLockedHashTable(table);
+    table->entries = new_entries;
+    table->capacity = new_capacity;
+}
+
 // Thread-safe insertion into the locked hash table
 void lockedHashTableInsert(LockedHashTable *table, int row, int col, double value) {
+    pthread_mutex_lock(&table->resize_lock); // Ensure resizing doesn't happen simultaneously
+
+    // Check if resize is needed
+    if (table->size > table->capacity * 0.7) {
+        printf("I> Resized Hash table\n");
+        clock_t resizeStart, resizeEnd; 
+        resizeStart = clock();
+        resizeLockedHashTable(table);
+
+        resizeEnd = clock();
+        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
+    }
+
     HashKey key = { row, col };
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    unsigned int originalIndex = index;
+    unsigned int i = 1;
 
-    pthread_mutex_lock(&table->entries[index].lock);  // Lock the specific bucket
-    if (table->entries[index].entry.occupied && 
-        table->entries[index].entry.key.row == row && 
-        table->entries[index].entry.key.col == col) {
-        table->entries[index].entry.value += value;
-    } else {
-        table->entries[index].entry.key = key;
-        table->entries[index].entry.value = value;
-        table->entries[index].entry.occupied = true;
+    while (1) {
+        pthread_mutex_lock(&table->entries[index].lock);
+
+        if (table->entries[index].entry.occupied) {
+            // If the slot is occupied, check if it's the same key
+            if (table->entries[index].entry.key.row == row && table->entries[index].entry.key.col == col) {
+                table->entries[index].entry.value += value;
+                pthread_mutex_unlock(&table->entries[index].lock);
+                break;
+            } else {
+                // Handle collision via quadratic probing
+                pthread_mutex_unlock(&table->entries[index].lock);
+                index = (originalIndex + i * i) % table->capacity;
+                i++;
+            }
+        } else {
+            // Insert the new entry
+            table->entries[index].entry.key = key;
+            table->entries[index].entry.value = value;
+            table->entries[index].entry.occupied = true;
+            table->size++;
+            pthread_mutex_unlock(&table->entries[index].lock);
+            break;
+        }
     }
-    pthread_mutex_unlock(&table->entries[index].lock);  // Unlock the bucket
+
+    pthread_mutex_unlock(&table->resize_lock);
 }
+
 // Function to initialize a sparse matrix
 void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
 
