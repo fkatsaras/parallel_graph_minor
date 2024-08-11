@@ -26,8 +26,9 @@ typedef struct {
     int capacity;
     int size;
     int collisionCount;
-    pthread_mutex_t *locks; // Array of mutexes for fine-grained locking
-    int lockCount;          // Number of locks
+    pthread_mutex_t *locks;     // Array of mutexes for fine-grained locking
+    int lockCount;              // Number of locks
+    pthread_mutex_t resizeLock; // Lock for resizing
 } HashTable;
 
 /******************************** Matrix data structs ***************************** */
@@ -364,52 +365,71 @@ int getLockIndex(unsigned int hashIndex, int lockCount) {
     return hashIndex % lockCount;
 }
 
-// Function to initialize a fine-grained locked hash table
-void initHashTableLock(HashTable *table, int capacity) {
+// Function to initialize locks in a hash table
+void initializeLocks(HashTable *table, int lockCount) {
+    if (lockCount <= 0) {
+        fprintf(stderr, "Error: Lock count must be greater than 0.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Set the lock count in the hash table
+    table->lockCount = lockCount;
+
+    // Allocate memory for the locks
+    table->locks = (pthread_mutex_t *)malloc(lockCount * sizeof(pthread_mutex_t));
+    if (table->locks == NULL) {
+        fprintf(stderr, "Error: Unable to allocate memory for locks.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize each lock in the array
+    for (int i = 0; i < lockCount; i++) {
+        if (pthread_mutex_init(&table->locks[i], NULL) != 0) {
+            fprintf(stderr, "Error: Unable to initialize lock %d.\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    printf("I> Successfully initialized %d locks.\n", lockCount);
+}
+
+// Initialize the hash table w/ locks
+void initHashTableLock(HashTable *table, int capacity, int lockCount) {
     table->capacity = capacity;
     table->size = 0;
     table->entries = (HashEntry *)calloc(capacity, sizeof(HashEntry));
     table->collisionCount = 0;
 
-    // Initialize fine-grained locks
-    table->lockCount = 64; // Number of locks (choose an appropriate number)
-    table->locks = (pthread_mutex_t *)malloc(table->lockCount * sizeof(pthread_mutex_t));
-    for (int i = 0; i < table->lockCount; i++) {
-        pthread_mutex_init(&table->locks[i], NULL);
-    }
+    initializeLocks(table, lockCount);
+    pthread_mutex_init(&table->resizeLock, NULL);
 }
 
-void destroyHashTable(HashTable *table) {
+// Function to destroy locks of hash table
+void destroyHashTableLocks(HashTable *table) {
     for (int i = 0; i < table->lockCount; i++) {
         pthread_mutex_destroy(&table->locks[i]);
     }
-    free(table->locks);
-    free(table->entries);
 }
 
-// Function for resizing hash table with fine-grained locks
+// Function to resize a hash table with locks if near capacity limit
 void resizeHashTableLock(HashTable *table) {
+
+    pthread_mutex_lock(&table->resizeLock);
+
     int oldCapacity = table->capacity;
     HashEntry *oldEntries = table->entries;
-    
-     // Free old locks and initialize new ones
-    if (table->locks != NULL) { // Check if locks are already allocated
-        for (int i = 0; i < table->lockCount; i++) {
-            pthread_mutex_destroy(&table->locks[i]);
-        }
-        free(table->locks);
-    }
-
-    table->lockCount = 64; // Adjust the number of locks as needed
-    table->locks = (pthread_mutex_t *)malloc(table->lockCount * sizeof(pthread_mutex_t));
-    for (int i = 0; i < table->lockCount; i++) {
-        pthread_mutex_init(&table->locks[i], NULL);
-    }
 
     table->capacity *= 2;
     table->entries = (HashEntry *)calloc(table->capacity, sizeof(HashEntry));
     table->size = 0;
 
+    // Reinitialize locks
+    destroyHashTableLocks(table);
+
+    table->lockCount = table->capacity / 10; // New lockcount
+    initializeLocks(table, table->lockCount);
+
+    // Reinsert old entries back at the resized table
     for (int i = 0; i < oldCapacity; i++) {
         if (oldEntries[i].occupied) {
             hashTableInsert(table, oldEntries[i].key.row, oldEntries[i].key.col, oldEntries[i].value);
@@ -417,6 +437,7 @@ void resizeHashTableLock(HashTable *table) {
     }
 
     free(oldEntries);
+    pthread_mutex_unlock(&table->resizeLock);
 }
 
 // Insert or update an entry in the hash table
@@ -441,17 +462,17 @@ void hashTableInsertLock(HashTable *table, int row, int col, double value) {
     unsigned int originalIndex = index; // Variables for quadratic probing
     unsigned int i = 1;
 
-    // Determine the lock index for fine-grained locking
-    int lockIndex = getLockIndex(index, table->lockCount);
-
-    pthread_mutex_lock(&table->locks[lockIndex]); // Lock the specific portion of the table
+    // Determine which lock to use
+    unsigned int lockIndex = index % table->lockCount;
+    // Lock the bucket
+    pthread_mutex_lock(&table->locks[lockIndex]);
 
     // Sum calclation - collision handling
     while (table->entries[index].occupied) {
         table->collisionCount++;
         if (table->entries[index].key.row == row && table->entries[index].key.col == col) { // Check if the product is to be summed
             table->entries[index].value += value;
-            pthread_mutex_unlock(&table->locks[lockIndex]); // Unlock after modification
+            pthread_mutex_unlock(&table->locks[lockIndex]); // Unlock before returning
             return;
         }
         // index = (index + 1) % table->capacity; // Linear probing
@@ -464,7 +485,8 @@ void hashTableInsertLock(HashTable *table, int row, int col, double value) {
     table->entries[index].occupied = true;
     table->size++;
 
-    pthread_mutex_unlock(&table->locks[lockIndex]); // Unlock after insertion
+    // Unlocking the bucket
+    pthread_mutex_unlock(&table->locks[lockIndex]);
 }
 
 /************************* Testing reasons **************************/

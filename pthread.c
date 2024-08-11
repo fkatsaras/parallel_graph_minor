@@ -37,7 +37,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
  
     HashTable table;
     // initHashTable(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz);
-    initHashTableLock(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz); //Iniialize table along with mutexes
+    int capacity = (A->nnz > B->nnz) ? A->nnz : B->nnz;
+    initHashTableLock(&table, capacity, capacity / 10); //Iniialize table along with mutexes
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
@@ -83,8 +84,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     // Clean-up
-    // free(table.entries);  // Free the hash table entries
-    destroyHashTable(&table);
+    free(table.entries);                // Free the hash table entries
+    destroyHashTableLocks(&table);      // Destroy locks
 
     return C;
 }
@@ -125,7 +126,7 @@ int main(int argc, char *argv[]) {
     // Print the result
     printSparseMatrix("C", &C, true);
     // Debug
-    // printDenseMatrix(&C);
+    printDenseMatrix(&C);
 
     printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 
