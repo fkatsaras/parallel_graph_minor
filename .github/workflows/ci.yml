@@ -15,10 +15,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up GCC
-      uses: actions/setup-gcc@v2
-      with:
-        gcc-version: '11'
+    - name: Install GCC and Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gcc g++
 
     - name: Install dependencies
       run:  |
