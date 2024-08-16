@@ -66,9 +66,17 @@ jobs:
         cd ..
 
 # Run tests
-    - name: Run Tests
+    - name: Run OpenMP Multiplication Validation Test
       run:  |
         cd tests/
         chmod +x validate*.sh
-        ./validate_openmp_runtime.sh
+        ./validate_multiplication.sh openmp
+        cd ..
+
+    - name: Run Pthreads Multiplication Validation Test
+      run: |
+        cd tests/
+        chmod +x validate*.sh
+        ./validate_multiplication.sh pthread
+        cd ..
 
