@@ -50,7 +50,7 @@ jobs:
     - name: Build Graph Minor Serial Implementation
       run: |
         cd src/
-        make serail_gm
+        make serial_gm
         cd ..
 
     - name: Build Graph Minor Pthreads implementation
@@ -66,8 +66,17 @@ jobs:
         cd ..
 
 # Run tests
-    - name: Run Tests
+    - name: Run OpenMP Multiplication Validation Test
       run:  |
         cd tests/
-        ./validate_openmp_runtime.sh
+        chmod +x validate*.sh
+        ./validate_multiplication.sh openmp
+        cd ..
+
+    - name: Run Pthreads Multiplication Validation Test
+      run: |
+        cd test/
+        chmod +x validate*.sh
+        ./validate_multiplication.sh pthread
+        cd ..
 
