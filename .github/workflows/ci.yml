@@ -50,7 +50,7 @@ jobs:
     - name: Build Graph Minor Serial Implementation
       run: |
         cd src/
-        make serail_gm
+        make serial_gm
         cd ..
 
     - name: Build Graph Minor Pthreads implementation
