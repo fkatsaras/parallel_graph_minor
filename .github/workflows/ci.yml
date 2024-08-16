@@ -69,5 +69,6 @@ jobs:
     - name: Run Tests
       run:  |
         cd tests/
+        chmod +x validate*.sh
         ./validate_openmp_runtime.sh
 
