@@ -1,46 +1,41 @@
 #!/bin/bash
 
+TEST_DIR="$(dirname "$(realpath "$0")")"
+ROOT_DIR="$(dirname "$TEST_DIR")"
+SRC_DIR="${ROOT_DIR}/src"
+
 # Function to run a program and measure its execution time
 # Arguments:
 # 	$1 - Executable name
 # 	$2 - Argument (matrix) 1 for the executable
 # 	$3 - Argument (matrix) 2 for the executable
-# 	$4 - Optional argumant for suppressing output (e.g., "true" or "false")
 run_and_time() {
 	local executable=$1
 	local arg1=$2
 	local arg2=$3
-	local suppress=${4:-"true"}
 
-	echo "Running $executable with arguments $arg1 and $arg2..."
+	# echo "Running $executable with arguments $arg1 and $arg2..."
 
-	# Start timing
-	local start_time=$(date +%s%N)
+	# Run the executable and capture the output
+	local output
+	output=$("${SRC_DIR}/${executable}" $arg1 $arg2)
 
-	# Run the executable and optionally suppress the output
-	if [ "$suppress" = "true" ]; then
-		./$executable $arg1 $arg2 > /dev/null
-	else
-		./$executable $arg1 $arg2
-	fi
+	# Extract the execution time 
+	local exec_time
+	exec_time=$(echo "$output" | grep "Total multiplication execution time: " | grep -oP '\d+\.\d+')
 
-	# End timing
-	local end_time=$(date +%s%N)
-	
-	# Calculate elapsed time in ms
-	local elapsed_time=$(( ($end_time - $start_time) / 1000000 ))
+	# echo "$executable execution time: ${exec_time}ms"
 
-	echo "$executable execution time: ${elapsed_time}ms"
+	exec_float=$(echo "$exec_time" | bc)
 
-	# Return elapsed time
-	echo $elapsed_time
-
+	# Return elapsed time converted to float
+	echo $exec_float
 }
 
 # Matrix arguments
-MATRIX_A="A.mtx.sty"
-MATRIX_B="B.mtx.sty"
-MATRIX_C="C.mtx.sty"
+MATRIX_A="${TEST_DIR}/A.mtx.sty"
+MATRIX_B="${TEST_DIR}/B.mtx.sty"
+MATRIX_C="${TEST_DIR}/C.mtx.sty"
 NUM_CLUSTERS=2
 
 # Run and time matrix multiplication
@@ -48,20 +43,32 @@ echo "Running matrix multiplication validation..."
 
 # Run serial implementation
 echo "Running serial implementation..."
-serial_mul_time=$(run_and_time "../src/serial_mul" "$MATRIX_A" "$MATRIX_B" "true")
+serial_mul_time=$(run_and_time "serial_mul" "$MATRIX_A" "$MATRIX_B" "true")
 
 # Run pthreads implementation
 echo "Running pthread implementation..."
-pthread_mul_time=$(run_and_time "../src/pthread_mul" "$MATRIX_A" "$MATRIX_B" "true")
+pthread_mul_time=$(run_and_time "pthread_mul" "$MATRIX_A" "$MATRIX_B" "true")
 
 # Compare execution times
 echo "Comparing execution times..."
-if [ "$pthread_mul_time" -lt "$serial_mul_time" ]; then
-	diff=$((serial_mul_time - pthread_mul_time))
-	echo "pThreads implementation is faster than the serial implementation by ${diff}ms"
-else
-	diff=$((pthread_mul_time - serial_mul_time))
-	echo "Serial implementation is faster than the pThreads implementation by ${diff}ms"
-fi
+echo
 
-# Additional validations or checks can be added here
+# Use bc for floating point comparison
+if [ "$(echo "$pthread_mul_time < $serial_mul_time" | bc -l)" -eq 1 ]; then
+    diff=$(echo "$serial_mul_time - $pthread_mul_time" | bc -l)
+    echo "pThreads implementation is faster than the serial implementation by $diff seconds"
+    echo "pThreads: $pthread_mul_time seconds"
+    echo "Serial: $serial_mul_time seconds"
+	exit 0
+elif [ "$(echo "$pthread_mul_time > $serial_mul_time" | bc -l)" -eq 1 ]; then
+    diff=$(echo "$pthread_mul_time - $serial_mul_time" | bc -l)
+    echo "Serial implementation is faster than the pThreads implementation by $diff seconds"
+    echo "pThreads: $pthread_mul_time seconds"
+    echo "Serial: $serial_mul_time seconds"
+	exit 1
+else
+    echo "Execution times are the same."
+    echo "pThreads: $pthread_mul_time seconds"
+    echo "Serial: $serial_mul_time seconds"
+	exit 1
+fi

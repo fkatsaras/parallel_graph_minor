@@ -12,12 +12,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up GCC
+      uses: actions/setup-gcc@v2
+      with:
+        gcc-version: '11'
+
+    - name: Install dependencies
+      run:  |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+# Make matrix multiplication executables
+
+    - name: Build Mat-mul Serial Implementation
+      run: |
+        cd src/
+        make serial_mul
+        cd ..
+
+    - name: Build Mat-mul Pthreads implementation
+      run: |
+        cd src/
+        make pthread_mul
+        cd ..
+
+    - name: Build Mat-mul OpenMP Implementation
+      run: |
+        cd src/
+        make openmp_mul
+        cd ..
+
+# Make graph minor calculation executables
+
+    - name: Build Graph Minor Serial Implementation
+      run: |
+        cd src/
+        make serail_gm
+        cd ..
+
+    - name: Build Graph Minor Pthreads implementation
+      run: |
+        cd src/
+        make pthread_gm
+        cd ..
+
+    - name: Build Graph Minor OpenMP Implementation
+      run: |
+        cd src/
+        make openmp_mul
+        cd ..
+
+# Run tests
+    - name: Run Tests
+      run:  |
+        cd tests/
+        ./validate_openmp_runtime.sh
+
