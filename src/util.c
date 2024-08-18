@@ -443,7 +443,7 @@ void resizeHashTable(HashTable *table);
 
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
-    if (table->size > table->capacity * 0.7) { // Resize table incase 70% is full
+    if (table->size > table->capacity * 0.65) { // Resize table incase 70% is full
         printf("I> Resized Hash table\n");
         clock_t resizeStart, resizeEnd; 
         resizeStart = clock();

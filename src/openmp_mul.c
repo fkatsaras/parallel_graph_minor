@@ -3,7 +3,7 @@
 #include "util.c"
 
 // Function to multiply sparse matrices
-SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
+SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     if (A->N != B->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
@@ -42,12 +42,18 @@ int main(int argc, char *argv[]) {
 
     // Input the matrix filename arguments
     if (argc < 3) {
-        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <matrix_file_A> <matrix_file_B> [-pprint]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *matrix_file_A = argv[1];
     const char *matrix_file_B = argv[2];
+    bool pprint_flag = false;
+
+    // Check for the -pprint flag
+    if (argc == 4 && strcmp(argv[3], "-pprint") == 0) {
+        pprint_flag = true;
+    }
 
     SparseMatrixCOO A, B, C;
 
@@ -63,16 +69,20 @@ int main(int argc, char *argv[]) {
 
     clock_t start, end;
     double cpu_time_used;
-
     start = clock();
 
     // Multiply A and B
-    C = multiplySparseMatrix(&A, &B);
+    C = multiplySparseMatrixParallel(&A, &B);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
     // Print the result
     printSparseMatrix("C", &C, true);
+
+    // Pretty print the dense matrix if -pprint flag is provided
+    if (pprint_flag) {
+        printDenseMatrix(&C);
+    }
 
     printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 
