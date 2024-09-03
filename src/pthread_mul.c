@@ -10,6 +10,10 @@ void* threadMultiply(void* arg) {
     SparseMatrixCOO *B = data->B;
     HashTable *table = data->table;
 
+    printf("<I> Thread %d starting. Processing rows %d to %d\n", data->thread_id, data->start, data->end);
+
+    int operations = 0;
+
     for (int i = data->start; i < data->end; i++) {
         for (int j = 0; j < B->nnz; j++) {
             if (A->J[i] == B->I[j]) {
@@ -22,9 +26,13 @@ void* threadMultiply(void* arg) {
                 hashTableInsert(table, row, col, value);
 
                 pthread_mutex_unlock(data->mutex); // Unlock after modifying shared data
+
+                operations++;
             }
         }
     }
+
+    printf("<I> Thread %d finished. Total operations: %d\n", data->thread_id, operations);
 
     return NULL;
 }
@@ -55,6 +63,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         if (threadData[i].end > A->nnz) {
             threadData[i].end = A->nnz;
         }
+        // Assign the thread ID
+        threadData[i].thread_id = i;
         // Assign the mutex to each thread
         threadData[i].mutex = &mutex;
         // Create thread and assign work
@@ -77,8 +87,8 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     hashEnd = clock();
     hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
 
-    printf("I> Hash Table collision count: %d\n", table->collisionCount);
-    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
+    printf("<I> Hash Table collision count: %d\n", table->collisionCount);
+    printf("<I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
     freeHashTable(table);  // Free the hash table entries
 
