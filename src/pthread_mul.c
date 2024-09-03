@@ -35,8 +35,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         exit(EXIT_FAILURE);
     }
  
-    HashTable table;
-    initHashTable(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz);
+    HashTable *table = createHashTable((A->nnz > B->nnz) ? A->nnz : B->nnz);
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
@@ -50,7 +49,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     for (int i = 0; i < numThreads; i++) {
         threadData[i].A = A;
         threadData[i].B = B;
-        threadData[i].table = &table;
+        threadData[i].table = table;
         threadData[i].start = i * chunkSize;
         threadData[i].end = (i + 1) * chunkSize;
         if (threadData[i].end > A->nnz) {
@@ -73,15 +72,15 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     double hashToCOOTime;
     hashStart = clock();
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+    SparseMatrixCOO C = hashTableToSparseMatrix(table, A->M, B->N);
 
     hashEnd = clock();
     hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
 
-    printf("I> Hash Table collision count: %d\n", table.collisionCount);
+    printf("I> Hash Table collision count: %d\n", table->collisionCount);
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
-    free(table.entries);  // Free the hash table entries
+    freeHashTable(table);  // Free the hash table entries
 
     return C;
 }

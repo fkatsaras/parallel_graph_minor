@@ -8,8 +8,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
-
-    
+ 
     HashTable *table = createHashTable((A->nnz > B->nnz) ? A->nnz : B->nnz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
 
     for (int i = 0; i < A->nnz; i++) {

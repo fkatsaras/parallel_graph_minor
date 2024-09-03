@@ -287,6 +287,7 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
     HashKey key = {row, col};
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
     HashEntry *current = table->buckets[index];
+    bool collision = false;
 
     // Traverse the linked list to find if the key already exists
     while (current) {
@@ -295,6 +296,7 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
             return;
         }
         current = current->next;
+        collision = true;
     }
 
     // Create a new entry and insert it at the head of the linked list
@@ -302,7 +304,9 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
     newEntry->next = table->buckets[index];
     table->buckets[index] = newEntry;
     table->size++;
-    table->collisionCount++;
+    if (collision) {
+        table->collisionCount++;
+    }
 }
 
 // Function to resize the hash table
