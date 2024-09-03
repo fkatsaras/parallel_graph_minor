@@ -9,8 +9,8 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
         exit(EXIT_FAILURE);
     }
 
-    HashTable table;
-    initHashTable(&table, (A->nnz > B->nnz) ? A->nnz : B->nnz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
+    
+    HashTable *table = createHashTable((A->nnz > B->nnz) ? A->nnz : B->nnz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
 
     for (int i = 0; i < A->nnz; i++) {
         for (int j = 0; j < B->nnz; j++) {
@@ -18,7 +18,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
                 int row = A->I[i];
                 int col = B->J[j];
                 double value = A->val[i] * B->val[j];
-                hashTableInsert(&table, row, col, value);
+                hashTableInsert(table, row, col, value);
             }
         }
     }
@@ -27,14 +27,15 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B) {
     double hashToCOOTime;
     hashStart = clock();
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+    SparseMatrixCOO C = hashTableToSparseMatrix(table, A->M, B->N);
 
     hashEnd = clock();
     hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
 
-    printf("I> Hash Table collision count: %d\n", table.collisionCount);
+    printf("I> Hash Table collision count: %d\n", table->collisionCount);
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
-    free(table.entries);  // Free the hash table entries
+
+    freeHashTable(table);  // Free the hash table entries
 
     return C;
 }

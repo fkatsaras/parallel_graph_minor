@@ -15,30 +15,20 @@ typedef struct {
     int row, col;
 } HashKey;
 
-typedef struct {
+typedef struct HashEntry{
     HashKey key;
     double value;
-    bool occupied;
+    struct HashEntry *next; // Pointer to the next entry in the linked list 
 } HashEntry;
 
 typedef struct {
-    HashEntry *entries;
-    int capacity;
-    int size;
-    int collisionCount;
+    HashEntry **buckets; // Array of pointers to linked lists of entries
+    int capacity;       // Total number of buckets 
+    int size;           // Number of elements in the hash table 
+    int collisionCount; // Number of collisions encountered
 } HashTable;
 
 /******************************** Matrix data structs ***************************** */
-typedef struct SparseMatrixCSR{
-
-    int *I_ptr;
-    int *J;
-    double *val;
-
-    int M;
-    int N;
-    int nz;
-} SparseMatrixCSR;
 
 typedef struct
 {
@@ -70,19 +60,6 @@ typedef struct
 
 /******************************** Thread data structs ***************************** */
 
-typedef struct {
-    HashEntry entry;
-    pthread_mutex_t lock;
-} LockedHashEntry;
-
-typedef struct {
-    LockedHashEntry *entries;
-    int capacity;
-    int size;
-    int collisionCount;
-    pthread_mutex_t resize_lock;
-} LockedHashTable;
-
 // Struct to hold thread information 
 typedef struct {
     int thread_id;
@@ -93,109 +70,7 @@ typedef struct {
     int end;
     pthread_mutex_t *mutex;
     HashTable *table;
-    LockedHashTable *lockedTable;
 } ThreadData;
-
-// Initialize the locked hash table
-void initLockedHashTable(LockedHashTable *table, int capacity) {
-    table->capacity = capacity;
-    table->entries = malloc(capacity * sizeof(LockedHashEntry));
-    for (int i = 0; i < capacity; i++) {
-        table->entries[i].entry.occupied = false;
-        pthread_mutex_init(&table->entries[i].lock, NULL);  // Ensure this is properly initialized
-    }
-}
-
-// Free the locked hash table
-void freeLockedHashTable(LockedHashTable *table) {
-    for (int i = 0; i < table->capacity; i++) {
-        pthread_mutex_destroy(&table->entries[i].lock);
-    }
-    free(table->entries);
-}
-
-unsigned int fnv1aHash(int row, int col, int capacity);
-
-// Resize the locked hash table
-void resizeLockedHashTable(LockedHashTable *table) {
-    int new_capacity = table->capacity * 2;
-    LockedHashEntry *new_entries = (LockedHashEntry *)calloc(new_capacity, sizeof(LockedHashEntry));
-
-    for (int i = 0; i < new_capacity; i++) {
-        pthread_mutex_init(&new_entries[i].lock, NULL);
-    }
-
-    // Rehash all the entries
-    for (int i = 0; i < table->capacity; i++) {
-        if (table->entries[i].entry.occupied) {
-            HashKey key = table->entries[i].entry.key;
-            unsigned int new_index = fnv1aHash(key.row, key.col, new_capacity);
-            unsigned int originalIndex = new_index;
-            unsigned int j = 1;
-
-            while (new_entries[new_index].entry.occupied) {
-                new_index = (originalIndex + j * j) % new_capacity; // Quadratic probing
-                j++;
-            }
-            
-            new_entries[new_index].entry = table->entries[i].entry;
-        }
-    }
-
-    // Swap old and new entries
-    freeLockedHashTable(table);
-    table->entries = new_entries;
-    table->capacity = new_capacity;
-}
-
-// Thread-safe insertion into the locked hash table
-void lockedHashTableInsert(LockedHashTable *table, int row, int col, double value) {
-    pthread_mutex_lock(&table->resize_lock); // Ensure resizing doesn't happen simultaneously
-
-    // Check if resize is needed
-    if (table->size > table->capacity * 0.7) {
-        printf("I> Resized Hash table\n");
-        clock_t resizeStart, resizeEnd; 
-        resizeStart = clock();
-        resizeLockedHashTable(table);
-
-        resizeEnd = clock();
-        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
-    }
-
-    HashKey key = { row, col };
-    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
-    unsigned int originalIndex = index;
-    unsigned int i = 1;
-
-    while (1) {
-        pthread_mutex_lock(&table->entries[index].lock);
-
-        if (table->entries[index].entry.occupied) {
-            // If the slot is occupied, check if it's the same key
-            if (table->entries[index].entry.key.row == row && table->entries[index].entry.key.col == col) {
-                table->entries[index].entry.value += value;
-                pthread_mutex_unlock(&table->entries[index].lock);
-                break;
-            } else {
-                // Handle collision via quadratic probing
-                pthread_mutex_unlock(&table->entries[index].lock);
-                index = (originalIndex + i * i) % table->capacity;
-                i++;
-            }
-        } else {
-            // Insert the new entry
-            table->entries[index].entry.key = key;
-            table->entries[index].entry.value = value;
-            table->entries[index].entry.occupied = true;
-            table->size++;
-            pthread_mutex_unlock(&table->entries[index].lock);
-            break;
-        }
-    }
-
-    pthread_mutex_unlock(&table->resize_lock);
-}
 
 /******************************** Init sparse matrix functions ***************************** */
 
@@ -209,17 +84,6 @@ void initSparseMatrix(SparseMatrixCOO *mat, int M, int N, int nnz) {
     mat->I = (int *)malloc(nnz * sizeof(int));
     mat->J = (int *)malloc(nnz * sizeof(int));
     mat->val = (double *)malloc(nnz * sizeof(double));
-}
-
-// Function to initialize a CSR matrix
-void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nz) {
-    mat->M = M;
-    mat->N = N;
-    mat->nz = nz;
-    
-    mat->I_ptr = (int *)malloc((M + 1) * sizeof(int));
-    mat->J = (int *)malloc(nz * sizeof(int));
-    mat->val = (double *)malloc(nz * sizeof(double));
 }
 
 // Function to free the memory allocated for a Sparse Matrix
@@ -251,28 +115,6 @@ void printSparseMatrix(const char *name, SparseMatrixCOO *mat, bool head) {
             printf("\t( %d , %d ) = %f\n", mat->I[i], mat->J[i], mat->val[i] );
             }
     }
-}
-
-// Function to print a sparse matrix in CSR format
-void printSparseMatrixCSR(SparseMatrixCSR *mat) {
-    printf("CSR Matrix:\n");
-    printf("I_ptr: ");
-    for (int i = 0; i <= mat->M; i++) {
-        printf("%d ", mat->I_ptr[i]);
-    }
-    printf("\n");
-
-    printf("J: ");
-    for (int i = 0; i < mat->nz; i++) {
-        printf("%d ", mat->J[i]);
-    }
-    printf("\n");
-
-    printf("val: ");
-    for (int i = 0; i < mat->nz; i++) {
-        printf("%f ", mat->val[i]);
-    }
-    printf("\n");
 }
 
 // Function to pretty print a matrix for debugging
@@ -335,29 +177,6 @@ int readSparseMatrix(const char *filename, SparseMatrixCOO *mat) {
         return ret;
     }
     return 0;
-}
-
-// Converts COO to CSR
-SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
-
-    SparseMatrixCSR output;
-    initSparseMatrixCSR(&output, A.M, A.N, A.nnz);
-
-    for (int i = 0; i < (output.M + 1); i++){
-        output.I_ptr[i] = 0;
-    }
-
-    for (int i = 0; i < A.nnz; i++){
-        output.val[i] = A.val[i];
-        output.J[i] = A.J[i];
-        output.I_ptr[A.I[i] + 1]++;
-    }
-
-    for (int i = 0; i < output.M; i++){
-        output.I_ptr[i + 1] += output.I_ptr[i];
-    }
-
-    return output;
 }
 
 /******************************** Hash table functions ***************************** */
@@ -431,117 +250,122 @@ uint32_t murmurHash3(uint32_t key1, uint32_t key2, uint32_t capacity) {
     return h1 % capacity;
 }
 
-// Initialize the hash table
-void initHashTable(HashTable *table, int capacity) {
-    table->capacity = capacity;
+// Function to create a new hash entry
+HashEntry *createHashEntry(int row, int col, double value) {
+    HashEntry *entry = (HashEntry *)malloc(sizeof(HashEntry));
+    entry->key.row = row;
+    entry->key.col = col;
+    entry->value = value;
+    entry->next = NULL;
+    return entry;
+}
+
+// Function to create a hash table
+HashTable *createHashTable(int initialCapacity) {
+    HashTable *table = (HashTable *)malloc(sizeof(HashTable));
+    table->capacity = initialCapacity;
     table->size = 0;
-    table->entries = (HashEntry *)calloc(capacity, sizeof(HashEntry));
     table->collisionCount = 0;
+    table->buckets = (HashEntry **)calloc(initialCapacity, sizeof(HashEntry *));
+    return table;
 }
 
 void resizeHashTable(HashTable *table);
 
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
-    if (table->size > table->capacity * 0.65) { // Resize table incase 70% is full
+    // Resize the table if load factor exceeds 65%
+    if (table->size > table->capacity * 0.65) {
         printf("I> Resized Hash table\n");
-        clock_t resizeStart, resizeEnd; 
+        clock_t resizeStart, resizeEnd;
         resizeStart = clock();
         resizeHashTable(table);
-
         resizeEnd = clock();
-        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
+        printf("I> Resize execution time: %f seconds\n", ((double)(resizeEnd - resizeStart)) / CLOCKS_PER_SEC);
     }
 
-    HashKey key = { row, col };
-    // Primary hash
-    // unsigned int index = hash(key, table->capacity);
+    HashKey key = {row, col};
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
-    // unsigned int index = murmurHash3((uint32_t) key.row, (uint32_t) key.col, (uint32_t) table->capacity);
-    // Secondary hash
-    // unsigned int stepSize = secondaryHash(key.row, key.col, table->capacity);
+    HashEntry *current = table->buckets[index];
 
-    unsigned int originalIndex = index; // Variables for quadratic probing
-    unsigned int i = 1;
-
-    // Sum calclation - collision handling
-    while (table->entries[index].occupied) {
-        table->collisionCount++;
-        if (table->entries[index].key.row == row && table->entries[index].key.col == col) { // Check if the product is to be summed
-            table->entries[index].value += value;
+    // Traverse the linked list to find if the key already exists
+    while (current) {
+        if (current->key.row == row && current->key.col == col) {
+            current->value += value;  // Update the existing value
             return;
         }
-        // index = (index + 1) % table->capacity; // Linear probing
-        index = (originalIndex + i * i) % table->capacity; // Quadratic probing
-        i++;
+        current = current->next;
     }
 
-    table->entries[index].key = key;
-    table->entries[index].value = value;
-    table->entries[index].occupied = true;
+    // Create a new entry and insert it at the head of the linked list
+    HashEntry *newEntry = createHashEntry(row, col, value);
+    newEntry->next = table->buckets[index];
+    table->buckets[index] = newEntry;
     table->size++;
+    table->collisionCount++;
 }
 
+// Function to resize the hash table
 void resizeHashTable(HashTable *table) {
     int oldCapacity = table->capacity;
-    HashEntry *oldEntries = table->entries;
+    HashEntry **oldBuckets = table->buckets;
 
+    // Double the capacity and reallocate buckets
     table->capacity *= 2;
-    table->entries = (HashEntry *)calloc(table->capacity, sizeof(HashEntry));
+    table->buckets = (HashEntry **)calloc(table->capacity, sizeof(HashEntry *));
     table->size = 0;
 
+    // Rehash all entries from the old table into the new one
     for (int i = 0; i < oldCapacity; i++) {
-        if (oldEntries[i].occupied) {
-            hashTableInsert(table, oldEntries[i].key.row, oldEntries[i].key.col, oldEntries[i].value);
+        HashEntry *entry = oldBuckets[i];
+        while (entry) {
+            HashEntry *next = entry->next;
+            unsigned int index = fnv1aHash(entry->key.row, entry->key.col, table->capacity);
+            entry->next = table->buckets[index];
+            table->buckets[index] = entry;
+            table->size++;
+            entry = next;
         }
     }
 
-    free(oldEntries);
+    free(oldBuckets);
 }
 
-// Function for merging two HashTables together
-void mergeHashTables(HashTable *globalTable, HashTable *localTable) {
-    for (int i = 0; i < localTable->capacity; i++) {
-        if (localTable->entries[i].occupied) {  // Add up the values of with the same keys
-            HashKey key = localTable->entries[i].key;
-            double value = localTable->entries[i].value;
-            hashTableInsert(globalTable, key.row, key.col, value);
+// Function to free the memory allocated for the hash table
+void freeHashTable(HashTable *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        HashEntry *entry = table->buckets[i];
+        while (entry) {
+            HashEntry *next = entry->next;
+            free(entry);
+            entry = next;
         }
     }
+    free(table->buckets);
+    free(table);
 }
 
 
-// Convert hash table to sparse matrix COO format
+// Function to convert hash table to sparse matrix COO format
 SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
     SparseMatrixCOO C;
-    initSparseMatrix(&C, M, N, table->size);
-    int index = 0;
+    // Initialize the SparseMatrixCOO with the dimensions and estimated size
+    initSparseMatrix(&C, M, N, table->size);  // table->size gives the count of entries
+
+    int index = 0;  // Index for inserting into the COO arrays
+    // Iterate over each bucket in the hash table
     for (int i = 0; i < table->capacity; i++) {
-        if (table->entries[i].key.row != 0 || table->entries[i].key.col != 0) {
-            C.I[index] = table->entries[i].key.row;
-            C.J[index] = table->entries[i].key.col;
-            C.val[index] = table->entries[i].value;
+        HashEntry *entry = table->buckets[i];  // Get the head of the linked list for this bucket
+        // Traverse the linked list in the current bucket
+        while (entry != NULL) {
+            // Populate the COO matrix with the key (row, col) and value from each entry
+            C.I[index] = entry->key.row;
+            C.J[index] = entry->key.col;
+            C.val[index] = entry->value;
             index++;
+            entry = entry->next;  // Move to the next node in the linked list
         }
     }
-    C.nnz = index;
+    C.nnz = index;  // Set the actual number of non-zero elements
     return C;
 }
-
-// // Define a function pointer type for functions with no arguments and no return value
-// typedef void (*FuncNoArgs)(void);
-
-// // Function to measure the execution time of a function
-// void measureExecutionTime(const char *message, FuncNoArgs func) {
-//     clock_t start, end;
-//     double executionTime;
-
-//     start = clock();  // Start the timer
-
-//     func();  // Call the function
-
-//     end = clock();  // End the timer
-//     executionTime = ((double) (end - start)) / CLOCKS_PER_SEC;  // Calculate elapsed time
-
-//     printf("%s execution time: %f seconds\n", message, executionTime);
-// }
