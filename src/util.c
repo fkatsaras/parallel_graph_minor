@@ -572,3 +572,100 @@ HashTable *createHashTable_L(int initialCapacity) {
 
     return table;
 }
+
+/******************************** CSR functions ***************************** */
+
+
+typedef struct SparseMatrixCSR{
+
+    int *I_ptr;
+    int *J;
+    double *val;
+
+    int M;
+    int N;
+    int nz;
+} SparseMatrixCSR;
+
+
+// Function to initialize a CSR matrix
+void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nz) {
+    mat->M = M;
+    mat->N = N;
+    mat->nz = nz;
+    
+    mat->I_ptr = (int *)malloc((M + 1) * sizeof(int));
+    mat->J = (int *)malloc(nz * sizeof(int));
+    mat->val = (double *)malloc(nz * sizeof(double));
+}
+
+// Function to print a sparse matrix in CSR format
+void printSparseMatrixCSR(SparseMatrixCSR *mat) {
+    printf("CSR Matrix:\n");
+    printf("I_ptr: ");
+    for (int i = 0; i <= mat->M; i++) {
+        printf("%d ", mat->I_ptr[i]);
+    }
+    printf("\n");
+
+    printf("J: ");
+    for (int i = 0; i < mat->nz; i++) {
+        printf("%d ", mat->J[i]);
+    }
+    printf("\n");
+
+    printf("val: ");
+    for (int i = 0; i < mat->nz; i++) {
+        printf("%f ", mat->val[i]);
+    }
+    printf("\n");
+}
+
+// Converts COO to CSR
+SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
+
+    SparseMatrixCSR output;
+    initSparseMatrixCSR(&output, A.M, A.N, A.nnz);
+
+    for (int i = 0; i < (output.M + 1); i++){
+        output.I_ptr[i] = 0;
+    }
+
+    for (int i = 0; i < A.nnz; i++){
+        output.val[i] = A.val[i];
+        output.J[i] = A.J[i];
+        output.I_ptr[A.I[i] + 1]++;
+    }
+
+    for (int i = 0; i < output.M; i++){
+        output.I_ptr[i + 1] += output.I_ptr[i];
+    }
+
+    return output;
+}
+
+// Function to free the memory allocated for a SparseMatrixCSR
+void freeCSRMatrix(SparseMatrixCSR *mat) {
+    free(mat->I_ptr);
+    free(mat->J);
+    free(mat->val);
+}
+
+// Converts CSR to COO
+SparseMatrixCOO CSRtoCOO(SparseMatrixCSR A) {
+    SparseMatrixCOO output;
+    initSparseMatrix(&output, A.M, A.N, A.nz);
+
+    int index = 0;
+    
+    for (int i = 0; i < A.M; i++) {
+        for (int j = A.I_ptr[i]; j < A.I_ptr[i + 1]; j++) {
+            output.I[index] = i;
+            output.J[index] = A.J[j];
+            output.val[index] = A.val[j];
+            index++;
+        }
+    }
+
+    return output;
+}
