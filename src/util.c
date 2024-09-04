@@ -279,15 +279,15 @@ void resizeHashTable(HashTable *table);
 
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
-    // Resize the table if load factor exceeds 65%
-    if (table->size > table->capacity * 0.65) {
-        printf("I> Resized Hash table\n");
-        clock_t resizeStart, resizeEnd;
-        resizeStart = clock();
-        resizeHashTable(table);
-        resizeEnd = clock();
-        printf("I> Resize execution time: %f seconds\n", ((double)(resizeEnd - resizeStart)) / CLOCKS_PER_SEC);
-    }
+    // // Resize the table if load factor exceeds 65%
+    // if (table->size > table->capacity * 0.65) {
+    //     printf("I> Resized Hash table\n");
+    //     clock_t resizeStart, resizeEnd;
+    //     resizeStart = clock();
+    //     resizeHashTable(table);
+    //     resizeEnd = clock();
+    //     printf("I> Resize execution time: %f seconds\n", ((double)(resizeEnd - resizeStart)) / CLOCKS_PER_SEC);
+    // }
 
     HashKey key = {row, col};
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
