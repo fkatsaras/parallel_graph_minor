@@ -77,6 +77,17 @@ typedef struct
     double *val
 } SparseMatrixCOO;
 
+typedef struct SparseMatrixCSR{
+
+    int *I_ptr;
+    int *J;
+    double *val;
+
+    int M;
+    int N;
+    int nz;
+} SparseMatrixCSR;
+
 /******************************** Thread data structs ***************************** */
 
 // Struct to hold thread information 
@@ -84,7 +95,8 @@ typedef struct {
     int thread_id;                  // Id for each thread
     SparseMatrixCOO *A;             // Matrix A
     SparseMatrixCOO *B;             // Matrix B
-    SparseMatrixCOO *C;             // Result matrix
+    SparseMatrixCSR *A_csr;         // Matrix A in CSR format
+    SparseMatrixCSR *B_csr;         // Matrix B in CSR format
     int start;                      // Thread workload start
     int end;                        // Thread workload end
     HashTable *table;               // Hash table
@@ -444,7 +456,7 @@ void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, dou
     if (!success) {
         // Max retries reached, failed to acquire lock
         fprintf(stderr, "<E> Thread %d failed to acquire lock for bucket %d after %d retries\n", data->thread_id, data->index, MAX_RETRIES);
-        return; // Exit the function without further processing
+        exit(EXIT_FAILURE); // Exit the function without further processing
     }
 
     // Proceed with inserting or updating the entry since the lock was acquired
@@ -574,19 +586,6 @@ HashTable *createHashTable_L(int initialCapacity) {
 }
 
 /******************************** CSR functions ***************************** */
-
-
-typedef struct SparseMatrixCSR{
-
-    int *I_ptr;
-    int *J;
-    double *val;
-
-    int M;
-    int N;
-    int nz;
-} SparseMatrixCSR;
-
 
 // Function to initialize a CSR matrix
 void initSparseMatrixCSR(SparseMatrixCSR *mat, int M, int N, int nz) {

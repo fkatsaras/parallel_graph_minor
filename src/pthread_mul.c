@@ -6,18 +6,24 @@
 
 void* threadMultiply(void* arg) {
     ThreadData* data = (ThreadData*)arg;
-    SparseMatrixCOO *A = data->A;
-    SparseMatrixCOO *B = data->B;
+    SparseMatrixCSR *A_csr = data->A_csr;
+    SparseMatrixCSR *B_csr = data->B_csr;
     HashTable *table = data->table;
 
-    for (int i = data->start; i < data->end; i++) {
-        for (int j = 0; j < B->nnz; j++) {
-            if (A->J[i] == B->I[j]) {
-                int row = A->I[i];
-                int col = B->J[j];
-                double value = A->val[i] * B->val[j];
+    // Perform multiplication CSR
+    for (int i = data->start; i < data->end; i++) { // Iterate over rows of A that are assigned to thread %d
+        for (int j = A_csr->I_ptr[i]; j < A_csr->I_ptr[i + 1]; j++) { // Iterate over non-zeros in row i of A
+            int aCol = A_csr->J[j]; // Column index in A
+            double aVal = A_csr->val[j]; // Value in A
 
-                hashTableInsert_L(data, table, row, col, value);
+            for (int k = B_csr->I_ptr[aCol]; k < B_csr->I_ptr[aCol + 1]; k++) { // Iterate over non-zeros in column aCol of B
+                int bRow = B_csr->I_ptr[k]; // Row index in B
+                int bCol = B_csr->J[k]; // Column index in B
+                double bVal = B_csr->val[k]; // Value in B
+                double cVal = aVal * bVal;
+
+                // Insert into hash table
+                hashTableInsert_L(data, table, i, bCol, cVal);
             }
         }
     }
@@ -25,31 +31,33 @@ void* threadMultiply(void* arg) {
     return NULL;
 }
 
-SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO *B, int numThreads) {
-    if (A->N != B->M) {
+SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatrixCSR *B_csr, int numThreads) {
+    if (A_csr->N != B_csr->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
  
-    HashTable *table = createHashTable_L(A->nnz + B->nnz);
+    HashTable *table = createHashTable_L(A_csr->nz + B_csr->nz);
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
     ThreadData threadData[numThreads];
-    int chunkSize = (A->nnz + numThreads - 1) / numThreads;
+    int chunkSize = (A_csr->M + numThreads - 1) / numThreads;   // Split the rows of A to distribute
 
 
     for (int i = 0; i < numThreads; i++) {
         threadData[i].thread_id = i;
-        threadData[i].A = A;
-        threadData[i].B = B;
+        threadData[i].A_csr = A_csr;
+        threadData[i].B_csr = B_csr;
         threadData[i].table = table;
         threadData[i].start = i * chunkSize;
         threadData[i].end = (i + 1) * chunkSize;
         threadData[i].index = 0;        // Empty value for index; Will be initialized later
-        if (threadData[i].end > A->nnz) {
-            threadData[i].end = A->nnz;
+        if (threadData[i].end > A_csr->M) {
+            threadData[i].end = A_csr->M;
         }
+
+        printf("<I> Thread %d processing rows from %d to %d\n", threadData[i].thread_id, threadData[i].start, threadData[i].end);
         // Create thread and assign work
         pthread_create(&threads[i], NULL, threadMultiply, &threadData[i]);
     }
@@ -63,7 +71,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
     double hashToCOOTime;
     hashStart = clock();
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(table, A->M, B->N);
+    SparseMatrixCOO C = hashTableToSparseMatrix(table, A_csr->M, B_csr->N);
 
     hashEnd = clock();
     hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
@@ -105,13 +113,17 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    SparseMatrixCSR A_csr, B_csr;
+    // Convert COO matrices to CSR format
+    A_csr = COOtoCSR(A);
+    B_csr = COOtoCSR(B);
 
     clock_t start, end;
     double cpu_time_used;
     start = clock();
 
-    // Multiply A and B
-    C = multiplySparseMatrixParallel(&A, &B, MAX_THREADS);
+    // Multiply A and B csr and return C coo
+    C = multiplySparseMatrixParallel(&A_csr, &B_csr, 4);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
