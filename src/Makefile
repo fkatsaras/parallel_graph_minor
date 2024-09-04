@@ -22,11 +22,11 @@ $(SERIAL_MUL_EXEC): serial_mul.o mmio.o
 
 # Rule to build the pthreads matrix multiplication executable
 $(PTHREAD_MUL_EXEC): pthread_mul.o mmio.o
-	$(CC) -pthread -o $@ $^
+	$(CC) -pthread -o $@ $^ -lm
 
 # Rule to build the openmp matrix multiplication executable
 $(OPENMP_MUL_EXEC): openmp_mul.o mmio.o
-	$(CC) -fopenmp -o $@ $^
+	$(CC) -fopenmp -o $@ $^ -lm
 
 # Rule to build the serial graphminor executable
 $(SERIAL_GRAPHMINOR_EXEC): serial_gm.o mmio.o
@@ -34,11 +34,11 @@ $(SERIAL_GRAPHMINOR_EXEC): serial_gm.o mmio.o
 
 # Rule to build the pthreads graphminor executable
 $(PTHREAD_GRAPHMINOR_EXEC): pthread_gm.o mmio.o
-	$(CC) -pthread -o $@ $^
+	$(CC) -pthread -o $@ $^ -lm
 
 # Rule to build the openmp graphminor executable
 $(OPENMP_GRAPHMINOR_EXEC): openmp_gm.o mmio.o
-	$(CC) -fopenmp -o $@ $^
+	$(CC) -fopenmp -o $@ $^ -lm
 
 # General rule to build object files
 %.o: %.c

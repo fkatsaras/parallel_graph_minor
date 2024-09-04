@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <omp.h>
+#include <math.h>
+#include <unistd.h>
 
 #include "mmio.h"
 
@@ -26,6 +28,8 @@ typedef struct {
     int capacity;       // Total number of buckets 
     int size;           // Number of elements in the hash table 
     int collisionCount; // Number of collisions encountered
+    pthread_mutex_t *bucketLocks;
+    pthread_mutex_t *resizeLock;
 } HashTable;
 
 /******************************** Matrix data structs ***************************** */
@@ -62,14 +66,15 @@ typedef struct
 
 // Struct to hold thread information 
 typedef struct {
-    int thread_id;
-    SparseMatrixCOO *A;
-    SparseMatrixCOO *B;
-    SparseMatrixCOO *C;
-    int start;
-    int end;
-    pthread_mutex_t *mutex;
-    HashTable *table;
+    int thread_id;                  // Id for each thread
+    SparseMatrixCOO *A;             // Matrix A
+    SparseMatrixCOO *B;             // Matrix B
+    SparseMatrixCOO *C;             // Result matrix
+    int start;                      // Thread workload start
+    int end;                        // Thread workload end
+    HashTable *table;               // Hash table
+    pthread_mutex_t *bucketLocks;   // Mutexes for each of the table's buckets
+    unsigned int index;             // Hash index for each thread
 } ThreadData;
 
 /******************************** Init sparse matrix functions ***************************** */
@@ -347,25 +352,209 @@ void freeHashTable(HashTable *table) {
 
 
 // Function to convert hash table to sparse matrix COO format
-SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
-    SparseMatrixCOO C;
-    // Initialize the SparseMatrixCOO with the dimensions and estimated size
-    initSparseMatrix(&C, M, N, table->size);  // table->size gives the count of entries
+SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int numRows, int numCols) {
+    // Ensure the table is valid
+    if (!table || !table->buckets) {
+        fprintf(stderr, "<E> Hash table is null or buckets are uninitialized.\n");
+        exit(EXIT_FAILURE);
+    }
 
-    int index = 0;  // Index for inserting into the COO arrays
-    // Iterate over each bucket in the hash table
-    for (int i = 0; i < table->capacity; i++) {
-        HashEntry *entry = table->buckets[i];  // Get the head of the linked list for this bucket
-        // Traverse the linked list in the current bucket
-        while (entry != NULL) {
+    // Initialize the SparseMatrixCOO with the dimensions and estimated size
+    SparseMatrixCOO C;
+    initSparseMatrix(&C, numRows, numCols, table->size);
+
+    printf("<D> Hash table size before conversion = %d\n", table->size);
+
+    if (!C.I || !C.J || !C.val) {
+        fprintf(stderr, "Error: Failed to allocate memory for sparse matrix COO format.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int index = 0;                                      // Index for inserting into the COO arrays
+    for (int i = 0; i < table->capacity; i++) {         // Iterate over each bucket in the hash table
+        HashEntry *entry = table->buckets[i];           // Get the head of the linked list for this bucket
+        while (entry) {                                 // Traverse the linked list in the current bucket
+            // Ensure index is within bounds
+            if (index >= C.nnz) {
+                fprintf(stderr, "<E> Index out of bounds. nnz mismatch.\n");
+                exit(EXIT_FAILURE);
+            }
+
             // Populate the COO matrix with the key (row, col) and value from each entry
             C.I[index] = entry->key.row;
             C.J[index] = entry->key.col;
             C.val[index] = entry->value;
+
+            // Move to the next node in the linked list
+            entry = entry->next;
             index++;
-            entry = entry->next;  // Move to the next node in the linked list
         }
     }
+
+    // Final check to ensure all non-zero elements are accounted for
+    if (index != C.nnz) {
+        fprintf(stderr, "<E> COO matrix size mismatch. Expected nnz=%d, but got %d.\n", C.nnz, index);
+        exit(EXIT_FAILURE);
+    }
+
     C.nnz = index;  // Set the actual number of non-zero elements
     return C;
+}
+
+/******************************** Locked Hash table functions ***************************** */
+
+#define MAX_RETRIES 10
+#define RETRY_DELAY_US 1
+
+// Insert or update an entry in the hash table with thread safety
+void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, double value) {
+
+    data->index = fnv1aHash(row, col, table->capacity); // Each thread calculates its own hash index to insert into
+    int retries = 0;
+    bool success = false;
+
+    while (retries < MAX_RETRIES){
+        // Try to lock the specific bucket
+        if(pthread_mutex_trylock(&table->bucketLocks[data->index]) == 0) {
+            // Lock acquired succesfully
+            success = true;
+            break;
+        }
+        // Lock not aquired, try again
+        printf("Thread %d tried accessing a busy bucket, retrying...",data->thread_id);
+        retries++;
+        usleep(RETRY_DELAY_US * pow(2, retries)); // Exponential backoff
+    } 
+
+    if (!success) {
+        // Max retries reached, failed to acquire lock
+        fprintf(stderr, "<E> Thread %d failed to acquire lock for bucket %d after %d retries\n", data->thread_id, data->index, MAX_RETRIES);
+        return; // Exit the function without further processing
+    }
+
+    // Proceed with inserting or updating the entry since the lock was acquired
+    HashEntry *current = table->buckets[data->index];
+
+    // Traverse the linked list to find if the key already exists
+    while (current) {
+        if (current->key.row == row && current->key.col == col) {
+            current->value += value;  // Update the existing value
+            pthread_mutex_unlock(&table->bucketLocks[data->index]);
+            return;
+        }
+        current = current->next;
+    }
+
+    // Create a new entry and insert it at the head of the linked list
+    HashEntry *newEntry = createHashEntry(row, col, value);
+    newEntry->next = table->buckets[data->index];
+    table->buckets[data->index] = newEntry;
+    table->size++;
+    table->collisionCount++;
+
+    // Unlock the bucket after modification
+    pthread_mutex_unlock(&table->bucketLocks[data->index]);
+    
+}
+
+// // Function to resize the hash table
+// void resizeHashTable_L(HashTable *table) {
+//     int oldCapacity = table->capacity;
+//     HashEntry **oldBuckets = table->buckets;
+//     pthread_mutex_t *oldBucketLocks = table->bucketLocks;
+
+//     // Double the capacity and reallocate buckets and locks
+//     table->capacity *= 2;
+//     table->buckets = (HashEntry **)calloc(table->capacity, sizeof(HashEntry *));
+//     table->bucketLocks = (pthread_mutex_t *)malloc(table->capacity * sizeof(pthread_mutex_t));
+//     for (int i = 0; i < table->capacity; i++) {
+//         pthread_mutex_init(&table->bucketLocks[i], NULL);
+//     }
+//     table->size = 0;
+
+//     // Rehash all entries from the old table into the new one
+//     for (int i = 0; i < oldCapacity; i++) {
+//         pthread_mutex_lock(&oldBucketLocks[i]); // Lock old buckets during transfer
+//         HashEntry *entry = oldBuckets[i];
+//         while (entry) {
+//             HashEntry *next = entry->next;
+//             unsigned int index = fnv1aHash(entry->key.row, entry->key.col, table->capacity);
+
+//             // Insert into the new buckets without locking (no other threads access the new table yet)
+//             entry->next = table->buckets[index];
+//             table->buckets[index] = entry;
+//             table->size++;
+//             entry = next;
+//         }
+//         pthread_mutex_unlock(&oldBucketLocks[i]); // Unlock after transfer
+//     }
+
+//     // Clean up old locks and buckets
+//     for (int i = 0; i < oldCapacity; i++) {
+//         pthread_mutex_destroy(&oldBucketLocks[i]);
+//     }
+//     free(oldBucketLocks);
+//     free(oldBuckets);
+// }
+
+// Function to free the memory allocated for the hash table
+void freeHashTable_L(HashTable *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        pthread_mutex_destroy(&table->bucketLocks[i]); // Destroy each bucket lock
+        HashEntry *entry = table->buckets[i];
+        while (entry) {
+            HashEntry *next = entry->next;
+            free(entry);
+            entry = next;
+        }
+    }
+    free(table->bucketLocks);
+    free(table->buckets);
+    free(table);
+}
+
+// Function to create a hash table with error checking
+HashTable *createHashTable_L(int initialCapacity) {
+    // Allocate memory for the hash table structure
+    HashTable *table = (HashTable *)malloc(sizeof(HashTable));
+    if (table == NULL) {
+        fprintf(stderr, "Error: Failed to allocate memory for hash table.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    table->capacity = initialCapacity;
+    table->size = 0;
+    table->collisionCount = 0;
+    table->buckets = (HashEntry **)calloc(initialCapacity, sizeof(HashEntry *));
+    if (table->buckets == NULL) {
+        fprintf(stderr, "Error: Failed to allocate memory for hash table buckets.\n");
+        free(table);
+        exit(EXIT_FAILURE);
+    }
+
+    // Allocate memory for bucket locks
+    table->bucketLocks = (pthread_mutex_t *)malloc(initialCapacity * sizeof(pthread_mutex_t));
+    if (table->bucketLocks == NULL) {
+        fprintf(stderr, "Error: Failed to allocate memory for bucket locks.\n");
+        free(table->buckets);
+        free(table);
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize each mutex lock
+    for (int i = 0; i < initialCapacity; i++) {
+        if (pthread_mutex_init(&table->bucketLocks[i], NULL) != 0) {
+            fprintf(stderr, "Error: Failed to initialize mutex lock.\n");
+            // Cleanup previously initialized locks
+            for (int j = 0; j < i; j++) {
+                pthread_mutex_destroy(&table->bucketLocks[j]);
+            }
+            free(table->bucketLocks);
+            free(table->buckets);
+            free(table);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    return table;
 }
