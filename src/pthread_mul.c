@@ -69,17 +69,15 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
 
     pthread_mutex_destroy(&mutex);
 
-    clock_t hashStart, hashEnd;
-    double hashToCOOTime;
-    hashStart = clock();
+    Timer DOCtoCOOtime;
+    startTimer(&DOCtoCOOtime);
 
     SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
 
-    hashEnd = clock();
-    hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
+    stopTimer(&DOCtoCOOtime);
 
     printf("I> Hash Table collision count: %d\n", table.collisionCount);
-    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
+    printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
 
     free(table.entries);  // Free the hash table entries
 
@@ -104,6 +102,7 @@ int main(int argc, char *argv[]) {
     }
 
     SparseMatrixCOO A, B, C;
+    Timer totalTimer;
 
     // Read from files
     if (readSparseMatrix(matrix_file_A, &A) != 0) {
@@ -115,16 +114,12 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-
-    clock_t start, end;
-    double cpu_time_used;
-    start = clock();
+    startTimer(&totalTimer);
 
     // Multiply A and B
     C = multiplySparseMatrixParallel(&A, &B, MAX_THREADS);
 
-    end = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    stopTimer(&totalTimer);
     // Print the result
     printSparseMatrix("C", &C, true);
 
@@ -133,7 +128,7 @@ int main(int argc, char *argv[]) {
         printDenseMatrix(&C);
     }
 
-    printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
+    printElapsedTime(&totalTimer,"Total multiplication: ");
 
     // Free the memory
     freeSparseMatrix(&A);

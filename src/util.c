@@ -96,6 +96,29 @@ typedef struct {
     LockedHashTable *lockedTable;
 } ThreadData;
 
+/******************************** Misc functions ***************************** */
+
+typedef struct {
+    clock_t start_time;
+    clock_t end_time;
+} Timer;
+
+// Start the timer
+void startTimer(Timer* timer) {
+    timer->start_time = clock();
+}
+
+// Stop the timer
+void stopTimer(Timer* timer) {
+    timer->end_time = clock();
+}
+
+// Print elapsed time message
+void printElapsedTime(Timer* timer, char *message) {
+    double elapsed = (double)(timer->end_time - timer->start_time) / CLOCKS_PER_SEC;
+    printf("%s : Elapsed time: %.6f seconds\n", message, elapsed);
+}
+
 // Initialize the locked hash table
 void initLockedHashTable(LockedHashTable *table, int capacity) {
     table->capacity = capacity;
@@ -154,13 +177,13 @@ void lockedHashTableInsert(LockedHashTable *table, int row, int col, double valu
 
     // Check if resize is needed
     if (table->size > table->capacity * 0.7) {
-        printf("I> Resized Hash table\n");
-        clock_t resizeStart, resizeEnd; 
-        resizeStart = clock();
+        Timer resizeTime;
+        startTimer(&resizeTime);
+
         resizeLockedHashTable(table);
 
-        resizeEnd = clock();
-        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
+        stopTimer(&resizeTime);
+        printElapsedTime(&resizeTime, "<I> Resized Hash Table! ");
     }
 
     HashKey key = { row, col };
@@ -444,13 +467,13 @@ void resizeHashTable(HashTable *table);
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
     if (table->size > table->capacity * 0.65) { // Resize table incase 70% is full
-        printf("I> Resized Hash table\n");
-        clock_t resizeStart, resizeEnd; 
-        resizeStart = clock();
-        resizeHashTable(table);
+        Timer resizeTime;
+        startTimer(&resizeTime);
 
-        resizeEnd = clock();
-        printf("I> Resize execution time: %f seconds\n", ((double) (resizeEnd - resizeStart)) / CLOCKS_PER_SEC ); 
+        resizeLockedHashTable(table);
+
+        stopTimer(&resizeTime);
+        printElapsedTime(&resizeTime, "<I> Resized Hash Table! "); 
     }
 
     HashKey key = { row, col };
@@ -528,20 +551,3 @@ SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int M, int N) {
     return C;
 }
 
-// // Define a function pointer type for functions with no arguments and no return value
-// typedef void (*FuncNoArgs)(void);
-
-// // Function to measure the execution time of a function
-// void measureExecutionTime(const char *message, FuncNoArgs func) {
-//     clock_t start, end;
-//     double executionTime;
-
-//     start = clock();  // Start the timer
-
-//     func();  // Call the function
-
-//     end = clock();  // End the timer
-//     executionTime = ((double) (end - start)) / CLOCKS_PER_SEC;  // Calculate elapsed time
-
-//     printf("%s execution time: %f seconds\n", message, executionTime);
-// }
