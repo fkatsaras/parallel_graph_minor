@@ -421,7 +421,7 @@ void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, dou
             break;
         }
         // Lock not aquired, try again
-        printf("Thread %d tried accessing a busy bucket, retrying...",data->thread_id);
+        printf("Thread %d tried accessing a busy bucket, retrying...\n",data->thread_id);
         retries++;
         usleep(RETRY_DELAY_US * pow(2, retries)); // Exponential backoff
     } 
@@ -449,12 +449,11 @@ void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, dou
     HashEntry *newEntry = createHashEntry(row, col, value);
     newEntry->next = table->buckets[data->index];
     table->buckets[data->index] = newEntry;
-    table->size++;
+    __sync_fetch_and_add(&table->size, 1);  // Atomic increment to prevent race conditions
     table->collisionCount++;
 
     // Unlock the bucket after modification
     pthread_mutex_unlock(&table->bucketLocks[data->index]);
-    
 }
 
 // // Function to resize the hash table

@@ -31,7 +31,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
         exit(EXIT_FAILURE);
     }
  
-    HashTable *table = createHashTable_L(A->nnz + B->nnz);
+    HashTable *table = createHashTable_L(3 * (A->nnz + B->nnz));
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];

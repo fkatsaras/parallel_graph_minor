@@ -18,7 +18,7 @@ OPENMP_GRAPHMINOR_EXEC = openmp_gm
 
 # Rule to build the serial matrix multiplication executable
 $(SERIAL_MUL_EXEC): serial_mul.o mmio.o
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -lm
 
 # Rule to build the pthreads matrix multiplication executable
 $(PTHREAD_MUL_EXEC): pthread_mul.o mmio.o
@@ -30,7 +30,7 @@ $(OPENMP_MUL_EXEC): openmp_mul.o mmio.o
 
 # Rule to build the serial graphminor executable
 $(SERIAL_GRAPHMINOR_EXEC): serial_gm.o mmio.o
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -lm
 
 # Rule to build the pthreads graphminor executable
 $(PTHREAD_GRAPHMINOR_EXEC): pthread_gm.o mmio.o
