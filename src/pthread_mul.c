@@ -76,7 +76,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO
 
     stopTimer(&DOCtoCOOtime);
 
-    printf("I> Hash Table collision count: %d\n", table.collisionCount);
+    printf("<I> Hash Table collision count: %d\n", table.collisionCount);
     printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
 
     free(table.entries);  // Free the hash table entries
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
         printDenseMatrix(&C);
     }
 
-    printElapsedTime(&totalTimer,"Total multiplication: ");
+    printElapsedTime(&totalTimer,"Total multiplication");
 
     // Free the memory
     freeSparseMatrix(&A);

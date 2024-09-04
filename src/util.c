@@ -116,7 +116,7 @@ void stopTimer(Timer* timer) {
 // Print elapsed time message
 void printElapsedTime(Timer* timer, char *message) {
     double elapsed = (double)(timer->end_time - timer->start_time) / CLOCKS_PER_SEC;
-    printf("%s : Elapsed time: %.6f seconds\n", message, elapsed);
+    printf("%s Execution time: %.6f seconds\n", message, elapsed);
 }
 
 // Initialize the locked hash table
@@ -470,7 +470,7 @@ void hashTableInsert(HashTable *table, int row, int col, double value) {
         Timer resizeTime;
         startTimer(&resizeTime);
 
-        resizeLockedHashTable(table);
+        resizeHashTable(table);
 
         stopTimer(&resizeTime);
         printElapsedTime(&resizeTime, "<I> Resized Hash Table! "); 
