@@ -3,25 +3,15 @@
 #include "util.c"
 
 // Function to multiply sparse matrices
-SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B, SparseMatrixCSR *A_csr, SparseMatrixCSR *B_csr) {
-    if (A->N != B->M) {
+SparseMatrixCOO multiplySparseMatrix(SparseMatrixCSR *A_csr, SparseMatrixCSR *B_csr) {
+    if (A_csr->N != B_csr->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
 
-    HashTable *table = createHashTable(A->nnz + B->nnz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
-
-    // for (int i = 0; i < A->nnz; i++) {
-    //     for (int j = 0; j < B->nnz; j++) {
-    //         if (A->J[i] == B->I[j]) {
-    //             int row = A->I[i];
-    //             int col = B->J[j];
-    //             double value = A->val[i] * B->val[j];
-    //             hashTableInsert(table, row, col, value);
-    //         }
-    //     }
-    // }
-    // Perform multiplication
+    HashTable *table = createHashTable(A_csr->nz + B_csr->nz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
+    
+    // Perform multiplication CSR
     for (int i = 0; i < A_csr->M; i++) { // Iterate over rows of A
         for (int j = A_csr->I_ptr[i]; j < A_csr->I_ptr[i + 1]; j++) { // Iterate over non-zeros in row i of A
             int aCol = A_csr->J[j]; // Column index in A
@@ -43,7 +33,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B, Spa
     double hashToCOOTime;
     hashStart = clock();
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(table, A->M, B->N);
+    SparseMatrixCOO C = hashTableToSparseMatrix(table, A_csr->M, B_csr->N);
 
     hashEnd = clock();
     hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
@@ -51,7 +41,10 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCOO *A, SparseMatrixCOO *B, Spa
     printf("I> Hash Table collision count: %d\n", table->collisionCount);
     printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
 
-    freeHashTable(table);  // Free the hash table entries
+    // Free allocated memory
+    freeCSRMatrix(A_csr);
+    freeCSRMatrix(B_csr);
+    freeHashTable(table);  
 
     return C;
 }
@@ -95,7 +88,7 @@ int main(int argc, char *argv[]) {
     start = clock();
 
     // Multiply A and B csr and return C coo
-    C = multiplySparseMatrix(&A, &B, &A_csr, &B_csr);
+    C = multiplySparseMatrix(&A_csr, &B_csr);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;

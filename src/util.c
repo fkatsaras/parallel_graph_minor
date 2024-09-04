@@ -622,24 +622,38 @@ void printSparseMatrixCSR(SparseMatrixCSR *mat) {
 }
 
 // Converts COO to CSR
-SparseMatrixCSR COOtoCSR(SparseMatrixCOO  A){
-
+SparseMatrixCSR COOtoCSR(SparseMatrixCOO A) {
     SparseMatrixCSR output;
     initSparseMatrixCSR(&output, A.M, A.N, A.nnz);
 
-    for (int i = 0; i < (output.M + 1); i++){
+    // Initialize row pointers
+    for (int i = 0; i <= output.M; i++) {
         output.I_ptr[i] = 0;
     }
 
-    for (int i = 0; i < A.nnz; i++){
-        output.val[i] = A.val[i];
-        output.J[i] = A.J[i];
+    // Count the number of non-zero elements per row
+    for (int i = 0; i < A.nnz; i++) {
         output.I_ptr[A.I[i] + 1]++;
     }
 
-    for (int i = 0; i < output.M; i++){
+    // Accumulate row pointers
+    for (int i = 0; i < output.M; i++) {
         output.I_ptr[i + 1] += output.I_ptr[i];
     }
+
+    // Populate J and val arrays
+    for (int i = 0; i < A.nnz; i++) {
+        int row = A.I[i];
+        int destIndex = output.I_ptr[row]++;
+        output.J[destIndex] = A.J[i];
+        output.val[destIndex] = A.val[i];
+    }
+
+    // Fix the row pointer array by shifting pointers
+    for (int i = output.M; i > 0; i--) {
+        output.I_ptr[i] = output.I_ptr[i - 1];
+    }
+    output.I_ptr[0] = 0;
 
     return output;
 }
