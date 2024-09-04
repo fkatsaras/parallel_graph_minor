@@ -24,6 +24,21 @@ typedef struct HashEntry{
 } HashEntry;
 
 typedef struct {
+    /*
+        HashTable
+        +-------------------------------------------+
+        |  []  []  []  []  []  []  []  []  []  []   |
+        +-------------------------------------------+
+          |   
+          v
+        bucket
+          |
+          v
+        +---+    +---+
+        | o | -> | o | -> NULL
+        +---+    +---+
+        entry
+    */
     HashEntry **buckets; // Array of pointers to linked lists of entries
     int capacity;       // Total number of buckets 
     int size;           // Number of elements in the hash table 
