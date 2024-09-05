@@ -104,6 +104,29 @@ typedef struct {
     unsigned int index;             // Hash index for each thread
 } ThreadData;
 
+/******************************** Misc functions ***************************** */
+
+typedef struct {
+    clock_t start_time;
+    clock_t end_time;
+} Timer;
+
+// Start the timer
+void startTimer(Timer* timer) {
+    timer->start_time = clock();
+}
+
+// Stop the timer
+void stopTimer(Timer* timer) {
+    timer->end_time = clock();
+}
+
+// Print elapsed time message
+void printElapsedTime(Timer* timer, char *message) {
+    double elapsed = (double)(timer->end_time - timer->start_time) / CLOCKS_PER_SEC;
+    printf("%s Execution time: %.6f seconds\n", message, elapsed);
+}
+
 /******************************** Init sparse matrix functions ***************************** */
 
 // Function to initialize a sparse matrix
@@ -306,15 +329,15 @@ void resizeHashTable(HashTable *table);
 
 // Insert or update an entry in the hash table
 void hashTableInsert(HashTable *table, int row, int col, double value) {
-    // // Resize the table if load factor exceeds 65%
-    // if (table->size > table->capacity * 0.65) {
-    //     printf("I> Resized Hash table\n");
-    //     clock_t resizeStart, resizeEnd;
-    //     resizeStart = clock();
-    //     resizeHashTable(table);
-    //     resizeEnd = clock();
-    //     printf("I> Resize execution time: %f seconds\n", ((double)(resizeEnd - resizeStart)) / CLOCKS_PER_SEC);
-    // }
+    if (table->size > table->capacity * 0.65) { // Resize table incase 70% is full
+        Timer resizeTime;
+        startTimer(&resizeTime);
+
+        resizeHashTable(table);
+
+        stopTimer(&resizeTime);
+        printElapsedTime(&resizeTime, "<I> Resized Hash Table! "); 
+    }
 
     HashKey key = {row, col};
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
