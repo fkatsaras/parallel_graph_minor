@@ -79,6 +79,30 @@ typedef struct
 
 typedef struct SparseMatrixCSR{
 
+    /*
+            N , J
+    +-------------------+
+    | *                 |
+    |    *    *         |
+    |    *  *           | M, I_ptr
+    |          *  *   * |
+    |             *     |
+    |      *   *     *  |
+    +-------------------+
+
+    nnz = *
+    I_ptr = Row pointer (size M+1)
+    J[nnz] = Column indices of non-zeros
+    val[nnz] = Non-zero values
+
+    Legend:
+    M = Rows
+    N = Columns
+    I_ptr = Row pointers (array of size M+1)
+    J = Column indices (array of size nnz)
+    val = Non-zero values (array of size nnz)
+   */
+
     int *I_ptr;
     int *J;
     double *val;
