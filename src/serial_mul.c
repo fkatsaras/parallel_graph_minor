@@ -9,7 +9,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCSR *A_csr, SparseMatrixCSR *B_
         exit(EXIT_FAILURE);
     }
 
-    HashTable *table = createHashTable(A_csr->nz + B_csr->nz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
+    HashTable *table = createHashTable(A_csr->nz  + B_csr->nz); // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
     
     // Perform multiplication CSR
     for (int i = 0; i < A_csr->M; i++) { // Iterate over rows of A

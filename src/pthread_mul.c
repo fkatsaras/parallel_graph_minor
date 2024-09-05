@@ -70,11 +70,11 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
+    SparseMatrixCOO C = hashTableToSparseMatrix(table, A_csr->M, B_csr->N);
 
     stopTimer(&DOCtoCOOtime);
 
-    printf("<I> Hash Table collision count: %d\n", table.collisionCount);
+    printf("<I> Hash Table collision count: %d\n", table->collisionCount);
     printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
 
     freeHashTable(table);  // Free the hash table entries
