@@ -100,8 +100,7 @@ int main(int argc, char *argv[]) {
     }
 
     SparseMatrixCOO A, B, C;
-    Timer totalTimer;
-
+    
     // Read from files
     if (readSparseMatrix(matrix_file_A, &A) != 0) {
         return EXIT_FAILURE;
@@ -116,6 +115,8 @@ int main(int argc, char *argv[]) {
     // Convert COO matrices to CSR format
     A_csr = COOtoCSR(A);
     B_csr = COOtoCSR(B);
+
+    Timer totalTimer;
     startTimer(&totalTimer);
 
     // Multiply A and B csr and return C coo

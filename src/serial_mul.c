@@ -29,17 +29,15 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCSR *A_csr, SparseMatrixCSR *B_
         }
     }
 
-    clock_t hashStart, hashEnd;
-    double hashToCOOTime;
-    hashStart = clock();
+    Timer DOCtoCOOtime;
+    startTimer(&DOCtoCOOtime);
 
     SparseMatrixCOO C = hashTableToSparseMatrix(table, A_csr->M, B_csr->N);
 
-    hashEnd = clock();
-    hashToCOOTime = ((double) (hashEnd - hashStart)) / CLOCKS_PER_SEC;
+    stopTimer(&DOCtoCOOtime);
 
-    printf("I> Hash Table collision count: %d\n", table->collisionCount);
-    printf("I> DOK to COO conversion execution time: %f seconds\n", hashToCOOTime);
+    printf("<I> Hash Table collision count: %d\n", table->collisionCount);
+    printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
 
     // Free allocated memory
     freeCSRMatrix(A_csr);
@@ -83,15 +81,13 @@ int main(int argc, char *argv[]) {
     A_csr = COOtoCSR(A);
     B_csr = COOtoCSR(B);
 
-    clock_t start, end;
-    double cpu_time_used;
-    start = clock();
+    Timer totalTimer;
+    startTimer(&totalTimer);
 
     // Multiply A and B csr and return C coo
     C = multiplySparseMatrix(&A_csr, &B_csr);
 
-    end = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    stopTimer(&totalTimer);
     // Print the result
     printSparseMatrix("C", &C, true);
 
@@ -100,7 +96,7 @@ int main(int argc, char *argv[]) {
         printDenseMatrix(&C);
     }
 
-    printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
+    printElapsedTime(&totalTimer,"Total multiplication");
 
     // Free the memory
     freeSparseMatrix(&A);
