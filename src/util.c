@@ -112,6 +112,15 @@ typedef struct SparseMatrixCSR{
     int nz;
 } SparseMatrixCSR;
 
+/******************************** Accumulator structs ***************************** */
+
+typedef struct {
+    HashTable *hashTable;   // Internal hash table to store intermediate results
+    int *allowed;           // Array to mark allowed columns
+    int numAllowed;         // Number of allowed entries
+} Accumulator;
+
+
 /******************************** Thread data structs ***************************** */
 
 // Struct to hold thread information 
@@ -150,6 +159,74 @@ void printElapsedTime(Timer* timer, char *message) {
     double elapsed = (double)(timer->end_time - timer->start_time) / CLOCKS_PER_SEC;
     printf("%s Execution time: %.6f seconds\n", message, elapsed);
 }
+
+/******************************** Accumulator functions ***************************** */
+
+void hashTableRemove(HashTable *table, int row, int col);
+void hashTableInsert(HashTable *table, int row, int col, double value);
+HashTable *createHashTable(int initialCapacity);
+HashEntry *hashTableGet(HashTable *table, int row, int col);
+
+// Initialize the accumulator
+Accumulator *createAccumulator(int capacity) {
+    Accumulator *acc = (Accumulator *)malloc(sizeof(Accumulator));
+    acc->hashTable = createHashTable(capacity);  // Initialize an internal hash table
+    acc->allowed = (int *)calloc(capacity, sizeof(int));  // Initialize allowed array
+    acc->numAllowed = 0;
+    return acc;
+}
+
+// Function to destroy the accumulator and free its resources
+void destroyAccumulator(Accumulator *acc) {
+    // First, free all entries in the hash table
+    for (int i = 0; i < acc->hashTable->capacity; i++) {
+        HashEntry *current = acc->hashTable->buckets[i];
+        while (current) {
+            HashEntry *next = current->next;
+            free(current);  // Free the current entry
+            current = next; // Move to the next entry in the list
+        }
+    }
+
+    // Free the array of bucket pointers in the hash table
+    free(acc->hashTable->buckets);
+
+    // Free the hash table structure itself
+    free(acc->hashTable);
+
+    // Free the 'allowed' array used by the accumulator
+    free(acc->allowed);
+
+    // Finally, free the accumulator structure
+    free(acc);
+}
+
+// Marks the specified column as allowed
+void setAllowed(Accumulator *acc, int col) {
+    acc->allowed[col] = 1;
+    acc->numAllowed++;
+}
+
+// Inserts a value into the accumulator only if it is marked as allowed
+void accumulatorInsert(Accumulator *acc, int row, int col, double value) {
+    if (acc->allowed[col]) {
+        hashTableInsert(acc->hashTable, row, col, value);  // Lazy insert into internal hash table
+    }
+}
+
+// Removes and merges the values from the accumulator into the final hash table
+double accumulatorRemove(Accumulator *acc, int row, int col) {
+    double result = 0;
+    HashEntry *entry = hashTableGet(acc->hashTable, row, col);  // Fetch the accumulated value
+
+    if (entry) {
+        result = entry->value;
+        // Clean up the entry from the internal accumulator hash table
+        hashTableRemove(acc->hashTable, row, col);
+    }
+    return result;
+}
+
 
 /******************************** Init sparse matrix functions ***************************** */
 
@@ -408,6 +485,49 @@ void resizeHashTable(HashTable *table) {
     }
 
     free(oldBuckets);
+}
+
+// Remove an entry from the hash table
+void hashTableRemove(HashTable *table, int row, int col) {
+    HashKey key = {row, col};
+    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    HashEntry *current = table->buckets[index];
+    HashEntry *prev = NULL;
+
+    // Traverse the linked list to find the entry to remove
+    while (current) {
+        if (current->key.row == row && current->key.col == col) {
+            // Found the entry to remove
+            if (prev) {
+                // Not the head of the list
+                prev->next = current->next;
+            } else {
+                // Head of the list
+                table->buckets[index] = current->next;
+            }
+            free(current);  // Free the memory allocated for the entry
+            table->size--;
+            return;
+        }
+        prev = current;
+        current = current->next;
+    }
+}
+
+// Retrieves the entry from the hash table based on row and column
+HashEntry *hashTableGet(HashTable *table, int row, int col) {
+    HashKey key = {row, col};
+    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    HashEntry *current = table->buckets[index];
+
+    // Traverse the linked list to find the entry with the matching key
+    while (current) {
+        if (current->key.row == row && current->key.col == col) {
+            return current;  // Entry found
+        }
+        current = current->next;
+    }
+    return NULL;  // Entry not found
 }
 
 // Function to free the memory allocated for the hash table
