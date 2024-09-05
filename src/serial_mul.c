@@ -46,8 +46,8 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCSR *A_csr, SparseMatrixCSR *B_
             }
         }
 
-    // Clean up the accumulator
-    destroyAccumulator(acc);
+        // Clean up the accumulator
+        destroyAccumulator(acc);
     }
 
     Timer DOCtoCOOtime;
