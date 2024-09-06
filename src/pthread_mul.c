@@ -23,7 +23,7 @@ void* threadMultiply(void* arg) {
                 double cVal = aVal * bVal;
 
                 // Insert into hash table
-                hashTableInsert_L(data, table, i, bCol, cVal);
+                hashTableInsert(table, i, bCol, cVal, false);
             }
         }
     }
@@ -36,20 +36,24 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
- 
-    HashTable *table = createHashTable_L(A_csr->nz + B_csr->nz);
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
     ThreadData threadData[numThreads];
     int chunkSize = (A_csr->M + numThreads - 1) / numThreads;   // Split the rows of A to distribute
+    
+    // Create private hash tables for each thread
+    HashTable *tables[numThreads];
 
 
     for (int i = 0; i < numThreads; i++) {
+
+        tables[i] = createHashTable(A_csr->nz); // Initializing local table for thread --- Initial capacity can be smaller here !!!!!
+
         threadData[i].thread_id = i;
         threadData[i].A_csr = A_csr;
         threadData[i].B_csr = B_csr;
-        threadData[i].table = table;
+        threadData[i].table = tables[i]; // Each thread gets its private hash table
         threadData[i].start = i * chunkSize;
         threadData[i].end = (i + 1) * chunkSize;
         threadData[i].index = 0;        // Empty value for index; Will be initialized later
@@ -67,6 +71,11 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         pthread_join(threads[i], NULL);
     }
 
+    HashTable *table = createHashTable(A_csr->nz + B_csr->nz);
+
+    // Merge all private hash tables into the final result
+    mergeHashTables(tables, table, numThreads);
+
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
 
@@ -78,6 +87,9 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
     printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
 
     // Free allocated memory
+    for (int i = 0; i < numThreads; i++) {
+        freeHashTable(tables[i]);
+    }
     freeCSRMatrix(A_csr);
     freeCSRMatrix(B_csr);
     freeHashTable(table); 

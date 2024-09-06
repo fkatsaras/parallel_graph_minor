@@ -410,6 +410,73 @@ void resizeHashTable(HashTable *table) {
     free(oldBuckets);
 }
 
+// Remove an entry from the hash table
+void hashTableRemove(HashTable *table, int row, int col) {
+    HashKey key = {row, col};
+    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    HashEntry *current = table->buckets[index];
+    HashEntry *prev = NULL;
+
+    // Traverse the linked list to find the entry to remove
+    while (current) {
+        if (current->key.row == row && current->key.col == col) {
+            // Found the entry to remove
+            if (prev) {
+                // Not the head of the list
+                prev->next = current->next;
+            } else {
+                // Head of the list
+                table->buckets[index] = current->next;
+            }
+            free(current);  // Free the memory allocated for the entry
+            table->size--;
+            return;
+        }
+        prev = current;
+        current = current->next;
+    }
+}
+
+// Retrieves the entry from the hash table based on row and column
+HashEntry *hashTableGet(HashTable *table, int row, int col) {
+    HashKey key = {row, col};
+    unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
+    HashEntry *current = table->buckets[index];
+
+    // Traverse the linked list to find the entry with the matching key
+    while (current) {
+        if (current->key.row == row && current->key.col == col) {
+            return current;  // Entry found
+        }
+        current = current->next;
+    }
+    return NULL;  // Entry not found
+}
+
+// Function to merge multiple private hash tables into a global hash table
+void mergeHashTables(HashTable *tables[], HashTable *globalTable, int numTables) {
+
+    // Merge each private hash table into the global hash table
+    for (int i = 0; i < numTables; i++) {
+        // Iterate over each bucket in the private table
+        for (int j = 0; j < tables[i]->capacity; j++) {
+            HashEntry *entry = tables[i]->buckets[j];
+
+            // Iterate over each entry in the linked list at this bucket
+            while (entry) {
+                int row = entry->key.row;
+                int col = entry->key.col;
+                double value = entry->value;
+
+                // Insert the entry into the global table
+                hashTableInsert(globalTable, row, col, value, false);
+
+                entry = entry->next;
+            }
+        }
+    }
+}
+
 // Function to free the memory allocated for the hash table
 void freeHashTable(HashTable *table) {
     for (int i = 0; i < table->capacity; i++) {
@@ -481,7 +548,7 @@ SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int numRows, int numCo
 #define RETRY_DELAY_US 1
 
 // Insert or update an entry in the hash table with thread safety
-void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, double value) {
+void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, double value, bool resize) {
 
     data->index = fnv1aHash(row, col, table->capacity); // Each thread calculates its own hash index to insert into
     int retries = 0;
