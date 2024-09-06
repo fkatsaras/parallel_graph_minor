@@ -5,3 +5,7 @@ cachegrind.out*
 *.exe
 *.out
 *.x86
+
+# Ignore matrix files
+
+matrices/*
