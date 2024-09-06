@@ -352,8 +352,8 @@ HashTable *createHashTable(int initialCapacity) {
 void resizeHashTable(HashTable *table);
 
 // Insert or update an entry in the hash table
-void hashTableInsert(HashTable *table, int row, int col, double value) {
-    if (table->size > table->capacity * 0.65) { // Resize table incase 70% is full
+void hashTableInsert(HashTable *table, int row, int col, double value, bool resize) {
+    if (resize && table->size > table->capacity * 0.65) { // Resize table incase 70% is full
         Timer resizeTime;
         startTimer(&resizeTime);
 
