@@ -8,12 +8,12 @@ CFLAGS = -O3 -march=native -ffast-math
 OBJS = serial_mul.o pthread_mul.o openmp_mul.o serial_gm.o pthread_gm.o openmp_gm.o mmio.o
 
 # Target executable names
-SERIAL_MUL_EXEC = serial_mul
-PTHREAD_MUL_EXEC = pthread_mul
-OPENMP_MUL_EXEC = openmp_mul
-SERIAL_GRAPHMINOR_EXEC = serial_gm
-PTHREAD_GRAPHMINOR_EXEC = pthread_gm
-OPENMP_GRAPHMINOR_EXEC = openmp_gm
+SERIAL_MUL_EXEC = serial_mul.exe
+PTHREAD_MUL_EXEC = pthread_mul.exe
+OPENMP_MUL_EXEC = openmp_mul.exe
+SERIAL_GRAPHMINOR_EXEC = serial_gm.exe
+PTHREAD_GRAPHMINOR_EXEC = pthread_gm.exe
+OPENMP_GRAPHMINOR_EXEC = openmp_gm.exe
 
 
 # Rule to build the serial matrix multiplication executable
