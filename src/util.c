@@ -367,6 +367,9 @@ void hashTableInsert(HashTable *table, int row, int col, double value, bool resi
     unsigned int index = fnv1aHash(key.row, key.col, table->capacity);
     HashEntry *current = table->buckets[index];
 
+    // Check if there's an existing entry in the bucket to detect a collision
+    bool collision = current != NULL;
+
     // Traverse the linked list to find if the key already exists
     while (current) {
         if (current->key.row == row && current->key.col == col) {
@@ -381,7 +384,11 @@ void hashTableInsert(HashTable *table, int row, int col, double value, bool resi
     newEntry->next = table->buckets[index];
     table->buckets[index] = newEntry;
     table->size++;
-    table->collisionCount++;
+
+    // Increment collision count if there was a collision   
+    if (collision) {
+        table->collisionCount++;
+    }
 }
 
 // Function to resize the hash table
