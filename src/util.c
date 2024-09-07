@@ -49,8 +49,7 @@ typedef struct {
 
 /******************************** Matrix data structs ***************************** */
 
-typedef struct
-{
+typedef struct SparseMatrixCOO{
     /*         
             N , J
     +-------------------+
@@ -74,7 +73,7 @@ typedef struct
     int M, N, nnz; // Matrix size info
 
     int *I, *J; // Matrix value info 
-    double *val
+    double *val;
 } SparseMatrixCOO;
 
 typedef struct SparseMatrixCSR{
