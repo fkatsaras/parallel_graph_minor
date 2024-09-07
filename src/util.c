@@ -40,7 +40,7 @@ typedef struct {
         entry
     */
     HashEntry **buckets; // Array of pointers to linked lists of entries
-    int capacity;       // Total number of buckets 
+    int capacity;       // Total number of buckets / linked lists
     int size;           // Number of elements in the hash table 
     int collisionCount; // Number of collisions encountered
     pthread_mutex_t *bucketLocks;
@@ -454,7 +454,7 @@ HashEntry *hashTableGet(HashTable *table, int row, int col) {
 }
 
 // Function to merge multiple private hash tables into a global hash table
-void mergeHashTables(HashTable *tables[], HashTable *globalTable, int numTables) {
+void mergeHashTables(HashTable *tables[], HashTable *globalTable, int numTables, bool resize) {
 
     // Merge each private hash table into the global hash table
     for (int i = 0; i < numTables; i++) {
@@ -469,7 +469,7 @@ void mergeHashTables(HashTable *tables[], HashTable *globalTable, int numTables)
                 double value = entry->value;
 
                 // Insert the entry into the global table
-                hashTableInsert(globalTable, row, col, value, false);
+                hashTableInsert(globalTable, row, col, value, resize);
 
                 entry = entry->next;
             }

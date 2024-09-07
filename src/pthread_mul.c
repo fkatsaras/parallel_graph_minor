@@ -48,7 +48,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
 
     for (int i = 0; i < numThreads; i++) {
 
-        tables[i] = createHashTable(A_csr->nz); // Initializing local table for thread --- Initial capacity can be smaller here !!!!!
+        tables[i] = createHashTable(4* A_csr->nz); // Initializing local table for thread --- Initial capacity can be smaller here !!!!!
 
         threadData[i].thread_id = i;
         threadData[i].A_csr = A_csr;
@@ -71,10 +71,10 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         pthread_join(threads[i], NULL);
     }
 
-    HashTable *table = createHashTable(A_csr->nz + B_csr->nz);
+    HashTable *table = createHashTable(4 * A_csr->nz);
 
     // Merge all private hash tables into the final result
-    mergeHashTables(tables, table, numThreads);
+    mergeHashTables(tables, table, numThreads, false);
 
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
