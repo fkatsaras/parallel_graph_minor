@@ -122,7 +122,8 @@ typedef struct {
     SparseMatrixCSR *B_csr;         // Matrix B in CSR format
     int start;                      // Thread workload start
     int end;                        // Thread workload end
-    HashTable *table;               // Hash table
+    HashTable *table;               // Thread private Hash table
+    HashTable *globalTable;         // Thread global Hash table
     pthread_mutex_t *bucketLocks;   // Mutexes for each of the table's buckets
     unsigned int index;             // Hash index for each thread
 } ThreadData;
@@ -459,7 +460,7 @@ HashEntry *hashTableGet(HashTable *table, int row, int col) {
     return NULL;  // Entry not found
 }
 
-// Function to merge multiple private hash tables into a global hash table
+// Function to merge multiple private hash tables into a global hash table SERIAL
 void mergeHashTables(HashTable *tables[], HashTable *globalTable, int numTables, bool resize) {
 
     // Merge each private hash table into the global hash table
@@ -479,6 +480,32 @@ void mergeHashTables(HashTable *tables[], HashTable *globalTable, int numTables,
 
                 entry = entry->next;
             }
+        }
+    }
+}
+
+void hashTableInsert_L(ThreadData *data, HashTable *table, int row, int col, double value, bool resize);
+
+// Function to merge multiple private hash tables into a global hash table PARALLEL
+void mergeHashTables_L(ThreadData *data, HashTable *globalTable, bool resize) {
+    if (!data || !data->table || !globalTable) {
+        fprintf(stderr, "Error: NULL pointer passed to mergeHashTables_L\n");
+        return;
+    }
+
+    // Iterate over each bucket in the private table
+    for (int j = 0; j < data->table->capacity; j++) {
+        HashEntry *entry = data->table->buckets[j];
+        // Iterate over each entry in the linked list at this bucket
+        while (entry) {
+            int row = entry->key.row;
+            int col = entry->key.col;
+            double value = entry->value;
+
+            // Insert the entry into the global table
+            hashTableInsert_L(data, globalTable, row, col, value, resize);
+
+            entry = entry->next;
         }
     }
 }
@@ -548,7 +575,7 @@ SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int numRows, int numCo
     return C;
 }
 
-/******************************** Locked Hash table functions ***************************** */
+/* ******************************* Locked Hash table functions ***************************** */
 
 #define MAX_RETRIES 10
 #define RETRY_DELAY_US 1

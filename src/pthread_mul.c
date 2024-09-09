@@ -31,6 +31,15 @@ void* threadMultiply(void* arg) {
     return NULL;
 }
 
+void* threadMerge(void* arg) {
+    ThreadData* data = (ThreadData*)arg;
+    HashTable *table = data->globalTable;
+
+    mergeHashTables_L(data, table, false);
+
+    return NULL;
+}
+
 SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatrixCSR *B_csr, int numThreads) {
     if (A_csr->N != B_csr->M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
@@ -39,31 +48,34 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
 
     // Initialize threads and calculate workload
     pthread_t threads[numThreads];
-    ThreadData threadData[numThreads];
+    ThreadData threadDataCompute[numThreads];
     int chunkSize = (A_csr->M + numThreads - 1) / numThreads;   // Split the rows of A to distribute
     
     // Create private hash tables for each thread
     HashTable *tables[numThreads];
+
+    // Create global hash table for final result
+    HashTable *table = createHashTable_L(4 * A_csr->nz);
 
 
     for (int i = 0; i < numThreads; i++) {
 
         tables[i] = createHashTable(4* A_csr->nz); // Initializing local table for thread --- Initial capacity can be smaller here !!!!!
 
-        threadData[i].thread_id = i;
-        threadData[i].A_csr = A_csr;
-        threadData[i].B_csr = B_csr;
-        threadData[i].table = tables[i]; // Each thread gets its private hash table
-        threadData[i].start = i * chunkSize;
-        threadData[i].end = (i + 1) * chunkSize;
-        threadData[i].index = 0;        // Empty value for index; Will be initialized later
-        if (threadData[i].end > A_csr->M) {
-            threadData[i].end = A_csr->M;
+        threadDataCompute[i].thread_id = i;
+        threadDataCompute[i].A_csr = A_csr;
+        threadDataCompute[i].B_csr = B_csr;
+        threadDataCompute[i].table = tables[i]; // Each thread gets its private hash table
+        threadDataCompute[i].start = i * chunkSize;
+        threadDataCompute[i].end = (i + 1) * chunkSize;
+        threadDataCompute[i].index = 0;        // Empty value for index; Will be initialized later
+        if (threadDataCompute[i].end > A_csr->M) {
+            threadDataCompute[i].end = A_csr->M;
         }
 
-        printf("<I> Thread %d processing rows from %d to %d\n", threadData[i].thread_id, threadData[i].start, threadData[i].end);
+        printf("<I> Thread %d processing rows from %d to %d\n", threadDataCompute[i].thread_id, threadDataCompute[i].start, threadDataCompute[i].end);
         // Create thread and assign work
-        pthread_create(&threads[i], NULL, threadMultiply, &threadData[i]);
+        pthread_create(&threads[i], NULL, threadMultiply, &threadDataCompute[i]);
     }
 
     // Join threads after work has been done
@@ -71,10 +83,23 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         pthread_join(threads[i], NULL);
     }
 
-    HashTable *table = createHashTable(4 * A_csr->nz);
+    // Parallel merging of private hash tables into the global table
+    pthread_t mergeThreads[numThreads];
+    ThreadData threadDataMerge[numThreads];
+    for (int i = 0; i < numThreads; i++) {
+        threadDataMerge[i].thread_id = i;
+        threadDataMerge[i].table = tables[i]; // Set the private table for merging
+        threadDataMerge[i].index = 0;        
+        threadDataMerge[i].globalTable = table;
 
-    // Merge all private hash tables into the final result
-    mergeHashTables(tables, table, numThreads, false);
+        printf("<I> Thread %d merging %d entries back to table\n", threadDataMerge[i].thread_id, threadDataMerge[i].table->size);
+        pthread_create(&mergeThreads[i], NULL, threadMerge, &threadDataMerge[i]);
+    }
+
+    // Join merge threads
+    for (int i = 0; i < numThreads; i++) {
+        pthread_join(mergeThreads[i], NULL);
+    }
 
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
