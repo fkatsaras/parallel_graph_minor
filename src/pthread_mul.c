@@ -83,23 +83,25 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         pthread_join(threads[i], NULL);
     }
 
-    // Parallel merging of private hash tables into the global table
-    pthread_t mergeThreads[numThreads];
-    ThreadData threadDataMerge[numThreads];
-    for (int i = 0; i < numThreads; i++) {
-        threadDataMerge[i].thread_id = i;
-        threadDataMerge[i].table = tables[i]; // Set the private table for merging
-        threadDataMerge[i].index = 0;        
-        threadDataMerge[i].globalTable = table;
+    // // Parallel merging of private hash tables into the global table
+    // pthread_t mergeThreads[numThreads];
+    // ThreadData threadDataMerge[numThreads];
+    // for (int i = 0; i < numThreads; i++) {
+    //     threadDataMerge[i].thread_id = i;
+    //     threadDataMerge[i].table = tables[i]; // Set the private table for merging
+    //     threadDataMerge[i].index = 0;        
+    //     threadDataMerge[i].globalTable = table;
 
-        printf("<I> Thread %d merging %d entries back to table\n", threadDataMerge[i].thread_id, threadDataMerge[i].table->size);
-        pthread_create(&mergeThreads[i], NULL, threadMerge, &threadDataMerge[i]);
-    }
+    //     printf("<I> Thread %d merging %d entries back to table\n", threadDataMerge[i].thread_id, threadDataMerge[i].table->size);
+    //     pthread_create(&mergeThreads[i], NULL, threadMerge, &threadDataMerge[i]);
+    // }
 
-    // Join merge threads
-    for (int i = 0; i < numThreads; i++) {
-        pthread_join(mergeThreads[i], NULL);
-    }
+    // // Join merge threads
+    // for (int i = 0; i < numThreads; i++) {
+    //     pthread_join(mergeThreads[i], NULL);
+    // }
+
+    mergeHashTables(tables, table, numThreads, false);
 
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
