@@ -120,8 +120,10 @@ typedef struct {
     SparseMatrixCOO *B;             // Matrix B
     SparseMatrixCSR *A_csr;         // Matrix A in CSR format
     SparseMatrixCSR *B_csr;         // Matrix B in CSR format
-    int start;                      // Thread workload start
-    int end;                        // Thread workload end
+    int row_start;                  // Row range for submatrix A
+    int row_end;
+    int col_start;                  // Column range for submatrix B
+    int col_end;
     HashTable *table;               // Thread private Hash table
     HashTable *globalTable;         // Thread global Hash table
     pthread_mutex_t *bucketLocks;   // Mutexes for each of the table's buckets
