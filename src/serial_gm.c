@@ -24,8 +24,7 @@ void constructOmegaMatrix(SparseMatrixCOO *Omega, int numNodes, int numClusters)
 
 void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters, SparseMatrixCOO *M) {
     // Initialize the hash table
-    HashTable memo;
-    initHashTable(&memo, 1024);  // Starting with a capacity of 1024
+    HashTable *memo = createHashTable(A->nnz);
 
     // Initialize matrix M 
     initSparseMatrix(M, numClusters, numClusters, 0);
@@ -41,14 +40,14 @@ void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numCluste
         int c_v = Omega->J[v];
 
         // Use hash table to store the result for (c_u, c_v)
-        hashTableInsert(&memo, c_u, c_v, A_uv);
+        hashTableInsert(memo, c_u, c_v, A_uv, true);
     }
 
     // Convert the hash table into the sparse matrix M
-    *M = hashTableToSparseMatrix(&memo, numClusters, numClusters);
+    *M = hashTableToSparseMatrix(memo, numClusters, numClusters);
 
     // Free the hash table memory
-    free(memo.entries);
+    freeHashTable(memo);
 }
 
 int main (int argc, char *argv[]) {

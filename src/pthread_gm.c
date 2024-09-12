@@ -27,9 +27,9 @@ void *computeGraphMinorThread(void *arg) {
     ThreadData *data = (ThreadData *)arg;
     SparseMatrixCOO *A = data->A;
     SparseMatrixCOO *Omega = data->B;
-    LockedHashTable *localMemo = data->lockedTable;
+    HashTable *memo = data->table;
 
-    for (int idx = data->start; idx < data->end; idx++) {
+    for (int idx = data->row_start; idx < data->row_end; idx++) {
         int u = A->I[idx];
         int v = A->J[idx];
         double A_uv = A->val[idx];
@@ -39,7 +39,7 @@ void *computeGraphMinorThread(void *arg) {
         int c_v = Omega->J[v];
 
         // Use the local hash table to store the result for (c_u, c_v)
-        lockedHashTableInsert(localMemo, c_u, c_v, A_uv);
+        hashTableInsert_L(data, memo, c_u, c_v, A_uv, false);
     }
 
     return NULL;
@@ -50,10 +50,7 @@ void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numCluste
     int numThreads = 2;  // Set the number of threads
     pthread_t threads[numThreads];
     ThreadData threadData[numThreads];
-    LockedHashTable memo;
-
-    // Initialize the locked hash table
-    initLockedHashTable(&memo, 1024);  // Starting with a capacity of 1024
+    HashTable *memo = createHashTable_L(A->nnz);  // Starting with a capacity of 1024
 
     // Initialize matrix M 
     initSparseMatrix(M, numClusters, numClusters, 0);
@@ -67,9 +64,9 @@ void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numCluste
         // Prepare the thread data
         threadData[i].A = A;
         threadData[i].B = Omega;
-        threadData[i].start = start;
-        threadData[i].end = end;
-        threadData[i].lockedTable = &memo;
+        threadData[i].row_start = start;
+        threadData[i].row_end = end;
+        threadData[i].table = memo;
 
         // Launch the thread
         pthread_create(&threads[i], NULL, computeGraphMinorThread, (void *)&threadData[i]);
@@ -81,10 +78,10 @@ void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numCluste
     }
 
     // Convert the locked hash table into the sparse matrix M
-    *M = hashTableToSparseMatrix((HashTable *)&memo, numClusters, numClusters);
+    *M = hashTableToSparseMatrix(memo, numClusters, numClusters);
 
     // Free the locked hash table memory
-    freeLockedHashTable(&memo);
+    freeHashTable(memo);
 }
 
 int main (int argc, char *argv[]) {
@@ -97,6 +94,12 @@ int main (int argc, char *argv[]) {
 
     const char *matrix_file_A = argv[1];
     int numClusters = atoi(argv[2]);
+    bool pprint_flag = false;
+
+    // Check for the -pprint flag
+    if (argc == 4 && strcmp(argv[3], "-pprint") == 0) {
+        pprint_flag = true;
+    }
 
     SparseMatrixCOO A, Omega, M;
 
@@ -112,6 +115,10 @@ int main (int argc, char *argv[]) {
     constructOmegaMatrix(&Omega, numNodes, numClusters);
 
     printSparseMatrix("Ω", &Omega, true);
+    // Pretty print the dense matrix if -pprint flag is provided
+    if (pprint_flag) {
+        printDenseMatrix(&Omega);
+    }
 
     // Step 2:
     // Compute the graph minor's adjacency matrix M
@@ -127,6 +134,10 @@ int main (int argc, char *argv[]) {
 
     // Print the result matrix M
     printSparseMatrix("M",&M, true);
+    // Pretty print the dense matrix if -pprint flag is provided
+    if (pprint_flag) {
+        printDenseMatrix(&M);
+    }
     printf("\nI> Total execution time: %f seconds\n", cpu_time_used);
     
     // Free memory
