@@ -8,7 +8,7 @@ void* threadMultiply(void* arg) {
     ThreadData* data = (ThreadData*)arg;
     SparseMatrixCSR *A_csr = data->A_csr;
     SparseMatrixCSR *B_csr = data->B_csr;
-    HashTable *table = data->globalTable;
+    HashTable *table = data->table;
 
     // Perform multiplication CSR
     // Iterate over the assigned submatrix of A
@@ -26,7 +26,7 @@ void* threadMultiply(void* arg) {
                     double cVal = aVal * bVal;
 
                     // Insert into hash table
-                    hashTableInsert_L(data, table, i, bCol, cVal, false);
+                    hashTableInsert(table, i, bCol, cVal, false);
                 }
             }
         }
@@ -65,16 +65,17 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
     HashTable *tables[numThreads];
 
     // Create global hash table for final result
-    HashTable *table = createHashTable_L(3 * A_csr->nz);
+    // HashTable *table = createHashTable_L(3 * A_csr->nz);
+    HashTable *table = createHashTable(3 * A_csr->nz);
 
     for (int i = 0; i < row_blocks; i++) {
         for (int j = 0; j < col_blocks; j++) {
             int thread_id = i * col_blocks + j;
-            // tables[thread_id] = createHashTable(4 * A_csr->nz); // Each thread gets its private hash table
+            tables[thread_id] = createHashTable(4 * A_csr->nz); // Each thread gets its private hash table
             threadDataCompute[thread_id].thread_id = thread_id;
             threadDataCompute[thread_id].A_csr = A_csr;
             threadDataCompute[thread_id].B_csr = B_csr;
-            // threadDataCompute[thread_id].table = tables[thread_id];
+            threadDataCompute[thread_id].table = tables[thread_id];
             threadDataCompute[thread_id].globalTable = table;
             
             // Assign ranges of submatrices
@@ -93,51 +94,12 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         }
     }
 
-
-    // for (int i = 0; i < numThreads; i++) {
-
-    //     tables[i] = createHashTable(4* A_csr->nz); // Initializing local table for thread --- Initial capacity can be smaller here !!!!!
-
-    //     threadDataCompute[i].thread_id = i;
-    //     threadDataCompute[i].A_csr = A_csr;
-    //     threadDataCompute[i].B_csr = B_csr;
-    //     threadDataCompute[i].table = tables[i]; // Each thread gets its private hash table
-    //     threadDataCompute[i].start = i * chunkSize;
-    //     threadDataCompute[i].end = (i + 1) * chunkSize;
-    //     threadDataCompute[i].index = 0;        // Empty value for index; Will be initialized later
-    //     if (threadDataCompute[i].end > A_csr->M) {
-    //         threadDataCompute[i].end = A_csr->M;
-    //     }
-
-    //     printf("<I> Thread %d processing rows from %d to %d\n", threadDataCompute[i].thread_id, threadDataCompute[i].start, threadDataCompute[i].end);
-    //     // Create thread and assign work
-    //     pthread_create(&threads[i], NULL, threadMultiply, &threadDataCompute[i]);
-    // }
-
     // Join threads after work has been done
     for (int i = 0; i < total_blocks; i++) {
         pthread_join(threads[i], NULL);
     }
 
-    // // Parallel merging of private hash tables into the global table
-    // pthread_t mergeThreads[numThreads];
-    // ThreadData threadDataMerge[numThreads];
-    // for (int i = 0; i < numThreads; i++) {
-    //     threadDataMerge[i].thread_id = i;
-    //     threadDataMerge[i].table = tables[i]; // Set the private table for merging
-    //     threadDataMerge[i].index = 0;        
-    //     threadDataMerge[i].globalTable = table;
-
-    //     printf("<I> Thread %d merging %d entries back to table\n", threadDataMerge[i].thread_id, threadDataMerge[i].table->size);
-    //     pthread_create(&mergeThreads[i], NULL, threadMerge, &threadDataMerge[i]);
-    // }
-
-    // // Join merge threads
-    // for (int i = 0; i < numThreads; i++) {
-    //     pthread_join(mergeThreads[i], NULL);
-    // }
-
-    // mergeHashTables(tables, table, numThreads, false);
+    mergeHashTables(tables, table, numThreads, false);
 
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
