@@ -12,7 +12,7 @@ void* threadMultiply(void* arg) {
 
     // Perform multiplication CSR
     // Iterate over the assigned submatrix of A
-    for (int i = data->row_start; i < data->row_end; i++) { // Iterate over rows of A that are assigned to thread %d
+    for (int i = data->row_start; i < data->row_end; i++) { // Iterate over rows of A that are assigned to thread
         for (int j = A_csr->I_ptr[i]; j < A_csr->I_ptr[i + 1]; j++) { // Iterate over non-zeros in row i of A
             int aCol = A_csr->J[j]; // Column index in A
             double aVal = A_csr->val[j]; // Value in A
@@ -20,26 +20,14 @@ void* threadMultiply(void* arg) {
             // Iterate over the assigned submatrix of B
             for (int k = B_csr->I_ptr[aCol]; k < B_csr->I_ptr[aCol + 1]; k++) { // Iterate over non-zeros in column aCol of B
                 int bCol = B_csr->J[k]; // Column index in B
+                double bVal = B_csr->val[k]; // Value in B
+                double cVal = aVal * bVal;
 
-                if (bCol >= data->col_start && bCol < data->col_end) { // Check if within the assigned column block
-                    double bVal = B_csr->val[k]; // Value in B
-                    double cVal = aVal * bVal;
-
-                    // Insert into hash table
-                    hashTableInsert(table, i, bCol, cVal, true);
-                }
+                // Insert into hash table
+                hashTableInsert(table, i, bCol, cVal, false);
             }
         }
     }
-
-    return NULL;
-}
-
-void* threadMerge(void* arg) {
-    ThreadData* data = (ThreadData*)arg;
-    HashTable *table = data->globalTable;
-
-    mergeHashTables_L(data, table, false);
 
     return NULL;
 }
@@ -50,74 +38,53 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         exit(EXIT_FAILURE);
     }
 
-    int row_blocks = 2; // Number of row blocks for A
-    int col_blocks = 2; // Number of column blocks for B
-    int total_blocks = row_blocks * col_blocks;
-
     // Initialize threads and calculate workload
-    pthread_t threads[total_blocks];
-    ThreadData threadDataCompute[total_blocks];
-    // int chunkSize = (A_csr->M + numThreads - 1) / numThreads;   // Split the rows of A to distribute
-    int row_block_size = (A_csr->M + row_blocks - 1)/ row_blocks;
-    int col_block_size = (B_csr->N + col_blocks - 1)/ col_blocks;
+    pthread_t threads[numThreads];
+    ThreadData threadDataCompute[numThreads];
+    int row_block_size = (A_csr->M + numThreads - 1) / numThreads;
 
     // Create private hash tables for each thread
     HashTable *tables[numThreads];
 
-    // Create global hash table for final result
-    // HashTable *table = createHashTable_L(3 * A_csr->nz);
-    HashTable *table = createHashTable(3 * A_csr->nz);
+    for (int i = 0; i < numThreads; i++) {
+        tables[i] = createHashTable(3 * A_csr->nz); // Each thread gets its private hash table
+        threadDataCompute[i].thread_id = i;
+        threadDataCompute[i].A_csr = A_csr;
+        threadDataCompute[i].B_csr = B_csr;
+        threadDataCompute[i].table = tables[i];
 
-    for (int i = 0; i < row_blocks; i++) {
-        for (int j = 0; j < col_blocks; j++) {
-            int thread_id = i * col_blocks + j;
-            tables[thread_id] = createHashTable(4 * A_csr->nz); // Each thread gets its private hash table
-            threadDataCompute[thread_id].thread_id = thread_id;
-            threadDataCompute[thread_id].A_csr = A_csr;
-            threadDataCompute[thread_id].B_csr = B_csr;
-            threadDataCompute[thread_id].table = tables[thread_id];
-            threadDataCompute[thread_id].globalTable = table;
-            
-            // Assign ranges of submatrices
-            threadDataCompute[thread_id].row_start = i * row_block_size;
-            threadDataCompute[thread_id].row_end = (i + 1) * row_block_size;
-            if (threadDataCompute[thread_id].row_end > A_csr->M) threadDataCompute[thread_id].row_end = A_csr->M;
-            
-            threadDataCompute[thread_id].col_start = j * col_block_size;
-            threadDataCompute[thread_id].col_end = (j + 1) * col_block_size;
-            if (threadDataCompute[thread_id].col_end > B_csr->N) threadDataCompute[thread_id].col_end = B_csr->N;
+        // Assign row ranges for threads
+        threadDataCompute[i].row_start = i * row_block_size;
+        threadDataCompute[i].row_end = (i + 1) * row_block_size;
+        if (threadDataCompute[i].row_end > A_csr->M) threadDataCompute[i].row_end = A_csr->M;
 
-            printf("Thread %d started processing rows from %d ... %d, cols from %d ... %d\n",thread_id, threadDataCompute[thread_id].row_start, threadDataCompute[thread_id].row_end, threadDataCompute[thread_id].col_start, threadDataCompute[thread_id].col_end);
-    
-            // Create thread
-            pthread_create(&threads[thread_id], NULL, threadMultiply, &threadDataCompute[thread_id]);
-        }
+        printf("Thread %d started processing rows from %d to %d\n", i, threadDataCompute[i].row_start, threadDataCompute[i].row_end);
+
+        // Create thread
+        pthread_create(&threads[i], NULL, threadMultiply, &threadDataCompute[i]);
     }
 
     // Join threads after work has been done
-    for (int i = 0; i < total_blocks; i++) {
+    for (int i = 0; i < numThreads; i++) {
         pthread_join(threads[i], NULL);
     }
-
-    // mergeHashTables(tables, table, numThreads, false);
 
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
 
-    SparseMatrixCOO C = hashTablesToSparseMatrix(tables, numThreads, A_csr->M, B_csr->N);    // Pass all the separate tables directly for conversion without merging
+    SparseMatrixCOO C = hashTablesToSparseMatrix(tables, numThreads, A_csr->M, B_csr->N);
 
     stopTimer(&DOCtoCOOtime);
 
-    printf("<I> Hash Table collision count: %d\n", table->collisionCount);
+    // printf("<I> Hash Table collision count: %d\n", table->collisionCount);
     printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
 
-    // // Free allocated memory
-    // for (int i = 0; i < numThreads; i++) {
-    //     freeHashTable(tables[i]);
-    // }
+    // Free allocated memory
+    for (int i = 0; i < numThreads; i++) {
+        freeHashTable(tables[i]);
+    }
     freeCSRMatrix(A_csr);
     freeCSRMatrix(B_csr);
-    freeHashTable(table); 
 
     return C;
 }

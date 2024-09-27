@@ -24,7 +24,7 @@ SparseMatrixCOO multiplySparseMatrix(SparseMatrixCSR A_csr, SparseMatrixCSR B_cs
                 double cVal = aVal * bVal;
 
                 // Insert into hash table
-                hashTableInsert(table, i, bCol, cVal, true);
+                hashTableInsert(table, i, bCol, cVal, false);
             }
         }
     }
