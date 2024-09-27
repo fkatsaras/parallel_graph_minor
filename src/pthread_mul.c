@@ -26,7 +26,7 @@ void* threadMultiply(void* arg) {
                     double cVal = aVal * bVal;
 
                     // Insert into hash table
-                    hashTableInsert(table, i, bCol, cVal, false);
+                    hashTableInsert(table, i, bCol, cVal, true);
                 }
             }
         }
@@ -99,12 +99,12 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
         pthread_join(threads[i], NULL);
     }
 
-    mergeHashTables(tables, table, numThreads, false);
+    // mergeHashTables(tables, table, numThreads, false);
 
     Timer DOCtoCOOtime;
     startTimer(&DOCtoCOOtime);
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(table, A_csr->M, B_csr->N);
+    SparseMatrixCOO C = hashTablesToSparseMatrix(tables, numThreads, A_csr->M, B_csr->N);    // Pass all the separate tables directly for conversion without merging
 
     stopTimer(&DOCtoCOOtime);
 

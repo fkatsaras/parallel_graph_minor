@@ -526,14 +526,68 @@ void freeHashTable(HashTable *table) {
     free(table);
 }
 
+// Function to convert hash table to sparse matrix COO format
+SparseMatrixCOO hashTablesToSparseMatrix(HashTable **tables, int numTables, int numRows, int numCols) {
+
+    // Initialize the SparseMatrixCOO with the dimensions and estimated size
+    SparseMatrixCOO C;
+
+    // Calculate total number of non zeroes
+    int totalNNZ = 0;
+    for (int i = 0; i < numTables; i++) {
+        if (!tables[i] || !tables[i]->buckets) {
+            fprintf(stderr, "<E> Hash table at index %d is null or buckets are uninitialized", i);
+            exit(EXIT_FAILURE);
+        }
+        totalNNZ += tables[i]->size; 
+    }
+
+    initSparseMatrix(&C, numRows, numCols, totalNNZ);
+
+    printf("<D> Hash table size before conversion = %d\n", totalNNZ);
+
+    if (!C.I || !C.J || !C.val) {
+        fprintf(stderr, "Error: Failed to allocate memory for sparse matrix COO format.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int index = 0;                                      // Index for inserting into the COO arrays
+    for (int t = 0; t < numTables; t++) {
+        HashTable *table = tables[t];
+        for (int i = 0; i < table->capacity; i++) {         // Iterate over each bucket in the hash table
+            HashEntry *entry = table->buckets[i];           // Get the head of the linked list for this bucket
+            while (entry) {                                 // Traverse the linked list in the current bucket
+                // Ensure index is within bounds
+                if (index >= C.nnz) {
+                    fprintf(stderr, "<E> Index out of bounds. nnz mismatch.\n");
+                    exit(EXIT_FAILURE);
+                }
+
+                // Populate the COO matrix with the key (row, col) and value from each entry
+                C.I[index] = entry->key.row;
+                C.J[index] = entry->key.col;
+                C.val[index] = entry->value;
+
+                // Move to the next node in the linked list
+                entry = entry->next;
+                index++;
+            }
+        }
+    }
+    
+
+    // Final check to ensure all non-zero elements are accounted for
+    if (index != C.nnz) {
+        fprintf(stderr, "<E> COO matrix size mismatch. Expected nnz=%d, but got %d.\n", C.nnz, index);
+        exit(EXIT_FAILURE);
+    }
+
+    C.nnz = index;  // Set the actual number of non-zero elements
+    return C;
+}
 
 // Function to convert hash table to sparse matrix COO format
 SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int numRows, int numCols) {
-    // Ensure the table is valid
-    if (!table || !table->buckets) {
-        fprintf(stderr, "<E> Hash table is null or buckets are uninitialized.\n");
-        exit(EXIT_FAILURE);
-    }
 
     // Initialize the SparseMatrixCOO with the dimensions and estimated size
     SparseMatrixCOO C;
@@ -548,24 +602,24 @@ SparseMatrixCOO hashTableToSparseMatrix(HashTable *table, int numRows, int numCo
 
     int index = 0;                                      // Index for inserting into the COO arrays
     for (int i = 0; i < table->capacity; i++) {         // Iterate over each bucket in the hash table
-        HashEntry *entry = table->buckets[i];           // Get the head of the linked list for this bucket
-        while (entry) {                                 // Traverse the linked list in the current bucket
-            // Ensure index is within bounds
-            if (index >= C.nnz) {
-                fprintf(stderr, "<E> Index out of bounds. nnz mismatch.\n");
-                exit(EXIT_FAILURE);
+            HashEntry *entry = table->buckets[i];       // Get the head of the linked list for this bucket
+            while (entry) {                             // Traverse the linked list in the current bucket
+                // Ensure index is within bounds
+                if (index >= C.nnz) {
+                    fprintf(stderr, "<E> Index out of bounds. nnz mismatch.\n");
+                    exit(EXIT_FAILURE);
+                }
+
+                // Populate the COO matrix with the key (row, col) and value from each entry
+                C.I[index] = entry->key.row;
+                C.J[index] = entry->key.col;
+                C.val[index] = entry->value;
+
+                // Move to the next node in the linked list
+                entry = entry->next;
+                index++;
             }
-
-            // Populate the COO matrix with the key (row, col) and value from each entry
-            C.I[index] = entry->key.row;
-            C.J[index] = entry->key.col;
-            C.val[index] = entry->value;
-
-            // Move to the next node in the linked list
-            entry = entry->next;
-            index++;
         }
-    }
 
     // Final check to ensure all non-zero elements are accounted for
     if (index != C.nnz) {
