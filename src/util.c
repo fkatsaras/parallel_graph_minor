@@ -857,6 +857,9 @@ SparseMatrixCSR COOtoCSR(SparseMatrixCOO A) {
     }
     output.I_ptr[0] = 0;
 
+    // Free the memory
+    freeSparseMatrix(&A);
+
     return output;
 }
 

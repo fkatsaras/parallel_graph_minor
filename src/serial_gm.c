@@ -22,32 +22,31 @@ void constructOmegaMatrix(SparseMatrixCOO *Omega, int numNodes, int numClusters)
     }
 }
 
-void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters, SparseMatrixCOO *M) {
+SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters) {
     // Initialize the hash table
-    HashTable *memo = createHashTable(A->nnz);
-
-    // Initialize matrix M 
-    initSparseMatrix(M, numClusters, numClusters, 0);
+    HashTable *memo = createHashTable(3 * A->nnz);
 
     // Iterate over each non-zero entry in the sparse matrix A
     for (int idx = 0; idx < A->nnz; idx++) {
-        int u = A->I[idx];
-        int v = A->J[idx];
-        double A_uv = A->val[idx];
+        int A_row = A->I[idx];
+        int A_col = A->J[idx];
+        double A_val = A->val[idx];
 
         // Find the clusters that nodes u and v belong to
-        int c_u = Omega->J[u];
-        int c_v = Omega->J[v];
+        int M_row = Omega->J[A_row];
+        int M_col = Omega->J[A_col];
 
         // Use hash table to store the result for (c_u, c_v)
-        hashTableInsert(memo, c_u, c_v, A_uv, true);
+        hashTableInsert(memo, M_row, M_col, A_val, true);
     }
 
     // Convert the hash table into the sparse matrix M
-    *M = hashTableToSparseMatrix(memo, numClusters, numClusters);
+    SparseMatrixCOO M = hashTableToSparseMatrix(memo, numClusters, numClusters);
 
     // Free the hash table memory
     freeHashTable(memo);
+
+    return M;
 }
 
 int main (int argc, char *argv[]) {
@@ -92,7 +91,7 @@ int main (int argc, char *argv[]) {
     double cpu_time_used;
     start = clock();
 
-    computeGraphMinor(&A, &Omega, numClusters, &M);
+    M = computeGraphMinor(&A, &Omega, numClusters);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;

@@ -22,11 +22,11 @@ void constructOmegaMatrix(SparseMatrixCOO *Omega, int numNodes, int numClusters)
     }
 }
 
-// Function that each thread will run
+// Function that each thread will run 
 void *computeGraphMinorThread(void *arg) {
     ThreadData *data = (ThreadData *)arg;
     SparseMatrixCOO *A = data->A;
-    SparseMatrixCOO *Omega = data->B;
+    SparseMatrixCOO *Omega = data->B; // Omega representing cluster information
     HashTable *memo = data->table;
 
     for (int idx = data->row_start; idx < data->row_end; idx++) {
@@ -39,34 +39,38 @@ void *computeGraphMinorThread(void *arg) {
         int c_v = Omega->J[v];
 
         // Use the local hash table to store the result for (c_u, c_v)
-        hashTableInsert_L(data, memo, c_u, c_v, A_uv, false);
+        hashTableInsert(memo, c_u, c_v, A_uv, false);
     }
 
     return NULL;
 }
 
 // Updated computeGraphMinor using fine-grained locking
-void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters, SparseMatrixCOO *M) {
+SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numClusters) {
     int numThreads = 2;  // Set the number of threads
     pthread_t threads[numThreads];
     ThreadData threadData[numThreads];
-    HashTable *memo = createHashTable_L(A->nnz);  // Starting with a capacity of 1024
+    
 
-    // Initialize matrix M 
-    initSparseMatrix(M, numClusters, numClusters, 0);
+    // Create array of hash tables to assign to each thread
+    HashTable *tables[numThreads];
 
     // Determine the workload for each thread
-    int chunkSize = A->nnz / numThreads;
+    int row_block_size = (A->M + numThreads - 1) / numThreads;
     for (int i = 0; i < numThreads; i++) {
-        int start = i * chunkSize;
-        int end = (i == numThreads - 1) ? A->nnz : (i + 1) * chunkSize;
+
+        tables[i] = createHashTable(3 * A->nnz); // Each thread gets its private hash table
 
         // Prepare the thread data
+        threadData[i].thread_id = i;
         threadData[i].A = A;
         threadData[i].B = Omega;
-        threadData[i].row_start = start;
-        threadData[i].row_end = end;
-        threadData[i].table = memo;
+        threadData[i].row_start = i * row_block_size;
+        threadData[i].row_end = (i + 1) * row_block_size;
+        threadData[i].table = tables[i];
+        if (threadData[i].row_end > A->M) threadData[i].row_end = A->M;
+
+        printf("Thread %d started processing rows from %d to %d\n", i, threadData[i].row_start, threadData[i].row_end);
 
         // Launch the thread
         pthread_create(&threads[i], NULL, computeGraphMinorThread, (void *)&threadData[i]);
@@ -77,11 +81,15 @@ void computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, int numCluste
         pthread_join(threads[i], NULL);
     }
 
-    // Convert the locked hash table into the sparse matrix M
-    *M = hashTableToSparseMatrix(memo, numClusters, numClusters);
+    // Convert the hash tables into the sparse matrix M
+    SparseMatrixCOO M = hashTablesToSparseMatrix(tables, numThreads, numClusters, numClusters);
 
-    // Free the locked hash table memory
-    freeHashTable(memo);
+    // Free allocated memory
+    for (int i = 0; i < numThreads; i++) {
+        freeHashTable(tables[i]);
+    }
+
+    return M;
 }
 
 int main (int argc, char *argv[]) {
@@ -101,7 +109,7 @@ int main (int argc, char *argv[]) {
         pprint_flag = true;
     }
 
-    SparseMatrixCOO A, Omega, M;
+    SparseMatrixCOO A, Omega;
 
     // Read from files
     if (readSparseMatrix(matrix_file_A, &A) != 0) {
@@ -119,14 +127,13 @@ int main (int argc, char *argv[]) {
     if (pprint_flag) {
         printDenseMatrix(&Omega);
     }
-
     // Step 2:
     // Compute the graph minor's adjacency matrix M
     clock_t start, end;
     double cpu_time_used;
     start = clock();
 
-    computeGraphMinor(&A, &Omega, numClusters, &M);
+    SparseMatrixCOO M = computeGraphMinor(&A, &Omega, numClusters);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -138,7 +145,7 @@ int main (int argc, char *argv[]) {
     if (pprint_flag) {
         printDenseMatrix(&M);
     }
-    printf("\nI> Total execution time: %f seconds\n", cpu_time_used);
+    printf("\n<I> Total execution time: %f seconds\n", cpu_time_used);
     
     // Free memory
     freeSparseMatrix(&A);

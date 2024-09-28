@@ -47,7 +47,7 @@ SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR *A_csr, SparseMatri
     HashTable *tables[numThreads];
 
     for (int i = 0; i < numThreads; i++) {
-        tables[i] = createHashTable(3 * A_csr->nz); // Each thread gets its private hash table
+        tables[i] = createHashTable(4 * A_csr->nz); // Each thread gets its private hash table
         threadDataCompute[i].thread_id = i;
         threadDataCompute[i].A_csr = A_csr;
         threadDataCompute[i].B_csr = B_csr;
@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
     bool pprint_flag = false;
 
     // Check for the -pprint flag
-    if (argc == 4 && strcmp(argv[3], "-pprint") == 0) {
+    if (argc == 4 && strcmp(argv[3], "--pprint") == 0) {
         pprint_flag = true;
     }
 
@@ -140,9 +140,6 @@ int main(int argc, char *argv[]) {
 
     printElapsedTime(&totalTimer,"Total multiplication");
 
-    // Free the memory
-    freeSparseMatrix(&A);
-    freeSparseMatrix(&B);
     freeSparseMatrix(&C);
 
     return 0;

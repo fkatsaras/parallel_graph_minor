@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     bool pprint_flag = false;
 
     // Check for the -pprint flag
-    if (argc == 4 && strcmp(argv[3], "-pprint") == 0) {
+    if (argc == 4 && strcmp(argv[3], "--pprint") == 0) {
         pprint_flag = true;
     }
 
@@ -99,8 +99,6 @@ int main(int argc, char *argv[]) {
     printElapsedTime(&totalTimer,"Total multiplication");
 
     // Free the memory
-    freeSparseMatrix(&A);
-    freeSparseMatrix(&B);
     freeSparseMatrix(&C);
 
     return 0;
