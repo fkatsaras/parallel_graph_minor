@@ -331,6 +331,36 @@ uint32_t murmurHash3(uint32_t key1, uint32_t key2, uint32_t capacity) {
     return h1 % capacity;
 }
 
+// Function to print a hash table
+void printHashTable(HashTable *hashTable) {
+    printf("Hash Table:\n");
+    printf("Capacity: %d\n", hashTable->capacity);
+    printf("Size: %d\n", hashTable->size);
+    printf("Collision Count: %d\n", hashTable->collisionCount);
+    printf("----------------------------------------------------\n");
+
+    // Iterate over all buckets
+    for (int i = 0; i < hashTable->capacity; i++) {
+        HashEntry *entry = hashTable->buckets[i];
+        
+        // Print the bucket index
+        printf("Bucket[%d]: ", i);
+
+        // If the bucket is empty
+        if (entry == NULL) {
+            printf("Empty\n");
+        } else {
+            // Print linked list entries for this bucket
+            while (entry != NULL) {
+                printf(" -> [Key: (row: %d, col: %d), Value: %f]", entry->key.row, entry->key.col, entry->value);
+                entry = entry->next; // Move to the next entry in the chain
+            }
+            printf(" -> NULL\n"); // End of the linked list
+        }
+    }
+
+    printf("----------------------------------------------------\n");
+}
 // Function to create a new hash entry
 HashEntry *createHashEntry(int row, int col, double value) {
     HashEntry *entry = (HashEntry *)malloc(sizeof(HashEntry));

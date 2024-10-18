@@ -27,18 +27,38 @@ SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, in
     HashTable *memo = createHashTable(3 * A->nnz);
 
     // Iterate over each non-zero entry in the sparse matrix A
-    for (int idx = 0; idx < A->nnz; idx++) {
-        int A_row = A->I[idx];
-        int A_col = A->J[idx];
-        double A_val = A->val[idx];
+    for (int i = 0; i < A->nnz; i++) {
+        int node = A->I[i];
+        int node_connect = A->J[i];
+        double node_weight = A->val[i];
 
-        // Find the clusters that nodes u and v belong to
-        int M_row = Omega->J[A_row];
-        int M_col = Omega->J[A_col];
+        // Print the current node and its connection
+        printf("Processing A[%d]: (node: %d, connects to: %d, weight: %lf)\n", i, node, node_connect, node_weight);
 
-        // Use hash table to store the result for (c_u, c_v)
-        hashTableInsert(memo, M_row, M_col, A_val, true);
+        int cluster = Omega->J[node];
+        int cluster_connect = Omega->J[node_connect];
+
+        // Ensure we only process the "upper triangular" part by enforcing an order
+        if (cluster != cluster_connect) {
+            // Find the clusters that nodes u and v belong to
+            
+
+            // Print the corresponding clusters for the current node
+            printf("Node %d belongs to cluster %d, and node %d belongs to cluster %d\n", node, cluster, node_connect, cluster_connect);
+
+            // Use hash table to store the result for (cluster, cluster_connect)
+            printf("Inserting into hash table: (cluster: %d, cluster_connect: %d, weight: %lf)\n", cluster, cluster_connect, node_weight);
+
+        } else {
+            printf("Symmetric connection; Adding half weight : (node: %d, connects to: %d)\n", node, node_connect);
+
+            node_weight /= 2;
+        }
+
+        hashTableInsert(memo, cluster, cluster_connect, node_weight, false);
     }
+
+    printHashTable(memo);
 
     // Convert the hash table into the sparse matrix M
     SparseMatrixCOO M = hashTableToSparseMatrix(memo, numClusters, numClusters);
@@ -79,8 +99,16 @@ int main (int argc, char *argv[]) {
     // Construct the Omega matrix with random cluster assignments
     constructOmegaMatrix(&Omega, numNodes, numClusters);
 
-    printSparseMatrix("Ω", &Omega, true);
+    
     // Pretty print the dense matrix if -pprint flag is provided
+
+    Omega.I[0] = 0;  Omega.J[0] = 1;  Omega.val[0] = 1.0;
+    Omega.I[1] = 1;  Omega.J[1] = 1;  Omega.val[1] = 1.0;
+    Omega.I[2] = 2;  Omega.J[2] = 2;  Omega.val[2] = 1.0;
+    Omega.I[3] = 3;  Omega.J[3] = 0;  Omega.val[3] = 1.0;
+
+    printSparseMatrix("Ω", &Omega, true);
+
     if (pprint_flag) {
         printDenseMatrix(&Omega);
     }
