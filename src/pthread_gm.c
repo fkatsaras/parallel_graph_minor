@@ -133,13 +133,6 @@ int main (int argc, char *argv[]) {
     // Construct the Omega matrix with random cluster assignments
     constructOmegaMatrix(&Omega, numNodes, numClusters);
 
-    Omega.I[0] = 0;  Omega.J[0] = 1;  Omega.val[0] = 1.0;
-    Omega.I[1] = 1;  Omega.J[1] = 1;  Omega.val[1] = 1.0;
-    Omega.I[2] = 2;  Omega.J[2] = 2;  Omega.val[2] = 1.0;
-    Omega.I[3] = 3;  Omega.J[3] = 0;  Omega.val[3] = 1.0;
-
-
-    printSparseMatrix("Ω", &Omega, true);
     // Pretty print the dense matrix if -pprint flag is provided
     if (pprint_flag) {
         printDenseMatrix(&Omega);
