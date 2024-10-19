@@ -29,11 +29,6 @@ void *computeGraphMinorThread(void *arg) {
     SparseMatrixCOO *Omega = data->B; // Omega representing cluster information
     HashTable *memo = data->table;
 
-    pthread_mutex_lock(data->mutex);
-
-    printf("Thread %d starting, processing rows from %d to %d\n", data->thread_id, data->row_start, data->row_end);
-
-
     // Process each row assigned to each thread
     for (int row = data->row_start; row < data->row_end; row++){
 
@@ -46,37 +41,15 @@ void *computeGraphMinorThread(void *arg) {
             double node_weight = A->val[i];
             // row represents the current node
 
-            // Debug: Print current edge information
-            printf("Thread %d: Processing edge (%d, %d) with weight %.6f\n", 
-                data->thread_id, row, node_connect, node_weight);
-
             int cluster = Omega->J[row];
             int cluster_connect = Omega->J[node_connect];
-
-             // Debug: Print cluster information
-            printf("Thread %d: Nodes (%d, %d) belong to clusters (%d, %d)\n", 
-               data->thread_id, row, node_connect, cluster, cluster_connect);
             
-            if (cluster == cluster_connect) {
-                printf("Thread %d: Nodes belong to the same cluster, halving weight to %.6f\n", 
-                   data->thread_id, node_weight);
-                node_weight /= 2;
-
-            }
-
-            // Debug: Print the insertion into the hash table
-            printf("Thread %d: Inserting into hash table: (cluster %d, cluster_connect %d) with weight %.6f\n", 
-                   data->thread_id, cluster, cluster_connect, node_weight);
+            if (cluster == cluster_connect) node_weight /= 2;
             // Use the local hash table to store the result for (c_u, c_v)
             hashTableInsert(memo, cluster, cluster_connect, node_weight, false);
         }
 
     }
-
-    printf("\n\nFinal hash map of thread %d: \n", data->thread_id);
-    printHashTable(data->table);
-
-    pthread_mutex_unlock(data->mutex);
 
     return NULL;
 }
@@ -90,13 +63,8 @@ SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, in
     // Convert A from COO to CSR
     SparseMatrixCSR A_csr = COOtoCSR(*A);
     
-
     // Create array of hash tables to assign to each thread
     HashTable *tables[numThreads];
-
-    // Debug mutex
-    pthread_mutex_t mutex;
-    pthread_mutex_init(&mutex, NULL); 
 
     // Assign rows of A to each thread
     int total_rows = A_csr.M;
@@ -112,15 +80,11 @@ SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, in
         threadData[i].row_start = i * base_rows + (i < remainder_rows ? i : remainder_rows);
         threadData[i].row_end = threadData[i].row_start + base_rows + (i < remainder_rows ? 1 : 0);
         threadData[i].table = tables[i];
-        threadData[i].mutex = &mutex;
-
         printf("Thread %d started processing rows from %d to %d\n", i, threadData[i].row_start, threadData[i].row_end);
 
         // Launch the thread
         pthread_create(&threads[i], NULL, computeGraphMinorThread, (void *)&threadData[i]);
     }
-
-    pthread_mutex_destroy(&mutex);
 
     // Wait for all threads to complete
     for (int i = 0; i < numThreads; i++) {
@@ -134,6 +98,7 @@ SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, in
     for (int i = 0; i < numThreads; i++) {
         freeHashTable(tables[i]);
     }
+    freeCSRMatrix(&A_csr);
 
     return M;
 }
@@ -200,7 +165,6 @@ int main (int argc, char *argv[]) {
     printf("\n<I> Total execution time: %f seconds\n", cpu_time_used);
     
     // Free memory
-    freeSparseMatrix(&A);
     freeSparseMatrix(&Omega);
     freeSparseMatrix(&M);
 
