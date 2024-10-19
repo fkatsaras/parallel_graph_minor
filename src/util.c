@@ -128,6 +128,7 @@ typedef struct {
     HashTable *globalTable;         // Thread global Hash table
     pthread_mutex_t *bucketLocks;   // Mutexes for each of the table's buckets
     unsigned int index;             // Hash index for each thread
+    pthread_mutex_t *mutex;         // Dummy debug mutex
 } ThreadData;
 
 /******************************** Misc functions ***************************** */

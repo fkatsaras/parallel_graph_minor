@@ -28,38 +28,19 @@ SparseMatrixCOO computeGraphMinor(SparseMatrixCOO *A, SparseMatrixCOO *Omega, in
 
     // Iterate over each non-zero entry in the sparse matrix A
     for (int i = 0; i < A->nnz; i++) {
+        // Extract node information
         int node = A->I[i];
         int node_connect = A->J[i];
         double node_weight = A->val[i];
 
-        // Print the current node and its connection
-        printf("Processing A[%d]: (node: %d, connects to: %d, weight: %lf)\n", i, node, node_connect, node_weight);
-
         int cluster = Omega->J[node];
         int cluster_connect = Omega->J[node_connect];
 
-        // Ensure we only process the "upper triangular" part by enforcing an order
-        if (cluster != cluster_connect) {
-            // Find the clusters that nodes u and v belong to
-            
-
-            // Print the corresponding clusters for the current node
-            printf("Node %d belongs to cluster %d, and node %d belongs to cluster %d\n", node, cluster, node_connect, cluster_connect);
-
-            // Use hash table to store the result for (cluster, cluster_connect)
-            printf("Inserting into hash table: (cluster: %d, cluster_connect: %d, weight: %lf)\n", cluster, cluster_connect, node_weight);
-
-        } else {
-            printf("Symmetric connection; Adding half weight : (node: %d, connects to: %d)\n", node, node_connect);
-
-            node_weight /= 2;
-        }
+        // Check the connection between nodes that belong to the same cluster -> Add half the weight
+        if (cluster == cluster_connect) node_weight /= 2;
 
         hashTableInsert(memo, cluster, cluster_connect, node_weight, false);
     }
-
-    printHashTable(memo);
-
     // Convert the hash table into the sparse matrix M
     SparseMatrixCOO M = hashTableToSparseMatrix(memo, numClusters, numClusters);
 
@@ -82,7 +63,7 @@ int main (int argc, char *argv[]) {
     bool pprint_flag = false;
 
     // Check for the -pprint flag
-    if (argc == 4 && strcmp(argv[3], "-pprint") == 0) {
+    if (argc == 4 && strcmp(argv[3], "--pprint") == 0) {
         pprint_flag = true;
     }
 
@@ -93,6 +74,8 @@ int main (int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    printDenseMatrix(&A);
+
     int numNodes = A.M;  // Assuming A is a square matrix, numNodes is the number of rows/columns
 
     // Step 1: 
@@ -101,7 +84,6 @@ int main (int argc, char *argv[]) {
 
     
     // Pretty print the dense matrix if -pprint flag is provided
-
     Omega.I[0] = 0;  Omega.J[0] = 1;  Omega.val[0] = 1.0;
     Omega.I[1] = 1;  Omega.J[1] = 1;  Omega.val[1] = 1.0;
     Omega.I[2] = 2;  Omega.J[2] = 2;  Omega.val[2] = 1.0;
