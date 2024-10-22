@@ -82,8 +82,8 @@ jobs:
     - name: Run Pthreads Multiplication Validation Test
       run: |
         cd tests/
-        chmod +x validate*.sh
-        chmod 644 validate*.sh
+        chmod +x ./validate*.sh
+        chmod 644 ./validate*.sh
 
         # Validate with small matrix
         echo "Validating with small matrix..."
