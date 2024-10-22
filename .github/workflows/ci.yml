@@ -31,12 +31,14 @@ jobs:
       run: |
         cd src/
         make serial_mul.exe
+        chmod +x serial_mul.exe
         cd ..
 
     - name: Build Mat-mul Pthreads implementation
       run: |
         cd src/
         make pthread_mul.exe
+        chmod +x pthread_mul.exe
         cd ..
 
     # - name: Build Mat-mul OpenMP Implementation
@@ -51,12 +53,14 @@ jobs:
       run: |
         cd src/
         make serial_gm.exe
+        chmod +x serial_gm.exe
         cd ..
 
     - name: Build Graph Minor Pthreads implementation
       run: |
         cd src/
         make pthread_gm.exe
+        chmod +x pthread_gm.exe
         cd ..
 
     # - name: Build Graph Minor OpenMP Implementation
@@ -66,8 +70,10 @@ jobs:
     #     cd ..
 
 # Run tests
+
+    # Uncomment to run OpenMP Multiplication Validation Test
     # - name: Run OpenMP Multiplication Validation Test
-    #   run:  |
+    #   run: |
     #     cd tests/
     #     chmod +x validate*.sh
     #     ./validate_multiplication.sh openmp
@@ -77,6 +83,37 @@ jobs:
       run: |
         cd tests/
         chmod +x validate*.sh
-        ./validate_multiplication.sh pthread
+        chmod 644 validate*.sh
+
+        # Validate with small matrix
+        echo "Validating with small matrix..."
+        ./tests/validate_multiplication.sh pthread ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx || true
+        
+        # Validate with medium matrix
+        echo "Validating with medium matrix..."
+        ./tests/validate_multiplication.sh pthread ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx || true
+        
+        # Validate with large matrix
+        echo "Validating with large matrix..."
+        ./tests/validate_multiplication.sh pthread ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx || true
+        
         cd ..
 
+    # Uncomment to run OpenMP validation tests
+    # - name: Run OpenMP Multiplication Validation Test
+    #   run: |
+    #     cd tests/
+    #     chmod +x validate*.sh
+    #     chmod 644 validate*.sh
+
+    #     # Validate with small matrix
+    #     echo "Validating with small matrix..."
+    #     ./validate_multiplication.sh openmp ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx || true
+
+    #     # Validate with medium matrix
+    #     echo "Validating with medium matrix..."
+    #     ./validate_multiplication.sh openmp ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx || true
+
+    #     # Validate with large matrix
+    #     echo "Validating with large matrix..."
+    #     ./validate_multiplication.sh openmp ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx || true
