@@ -3,37 +3,47 @@
 #include "util.c"
 
 // Function to multiply sparse matrices
-SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCOO *A, SparseMatrixCOO *B) {
-    if (A->N != B->M) {
+SparseMatrixCOO multiplySparseMatrixParallel(SparseMatrixCSR A_csr, SparseMatrixCSR B_csr) {
+    if (A_csr.N != B_csr.M) {
         printf("Incompatible matrix dimensions for multiplication.\n");
         exit(EXIT_FAILURE);
     }
 
-    int initialCapacity = A->nnz; // Initial estimation for size (Greater initial est -> Less hash table resizes -> Greater chance of getting segfault)
-    HashTable table;
-    initHashTable(&table, initialCapacity);
+    HashTable *table = createHashTable(3*A_csr.nz); // Initial estimation for size (Greater initial est . Less hash table resizes . Greater chance of getting segfault)
+    
+    // Perform multiplication CSR
+    #pragma omp parallel for shared(A_csr, B_csr, table) private(i, j, aCol, aVal, bRow, bCol, bVal, cVal)
+    for (int i = 0; i < A_csr.M; i++) { // Iterate over rows of A
+        for (int j = A_csr.I_ptr[i]; j < A_csr.I_ptr[i + 1]; j++) { // Iterate over non-zeros in row i of A
+            int aCol = A_csr.J[j]; // Column index in A
+            double aVal = A_csr.val[j]; // Value in A
 
-    #pragma omp parallel for shared(A, B, table) private(i, j, row, col, value)
-    for (int i = 0; i < A->nnz; i++) {
-        #pragma omp for
-        {
-            for (int j = 0; j < B->nnz; j++) {
-                if (A->J[i] == B->I[j]) {
-                    int row = A->I[i];
-                    int col = B->J[j];
-                    double value = A->val[i] * B->val[j];
-                    #pragma omp critical
-                    {
-                        hashTableInsert(&table, row, col, value);
-                    }
-                }
+            for (int k = B_csr.I_ptr[aCol]; k < B_csr.I_ptr[aCol + 1]; k++) { // Iterate over non-zeros in column aCol of B
+                int bRow = B_csr.I_ptr[k]; // Row index in B
+                int bCol = B_csr.J[k]; // Column index in B
+                double bVal = B_csr.val[k]; // Value in B
+                double cVal = aVal * bVal;
+
+                // Insert into hash table
+                hashTableInsert(table, i, bCol, cVal, false);
             }
         }
     }
 
-    SparseMatrixCOO C = hashTableToSparseMatrix(&table, A->M, B->N);
-    printf("I> Hash Table collision count: %d\n", table.collisionCount);
-    free(table.entries);  // Free the hash table entries
+    Timer DOCtoCOOtime;
+    startTimer(&DOCtoCOOtime);
+
+    SparseMatrixCOO C = hashTableToSparseMatrix(table, A_csr.M, B_csr.N);
+
+    stopTimer(&DOCtoCOOtime);
+
+    printf("<I> Hash Table collision count: %d\n", table->collisionCount);
+    printElapsedTime(&DOCtoCOOtime, "<I> DOK to COO conversion");
+
+    // Free allocated memory
+    freeCSRMatrix(&A_csr);
+    freeCSRMatrix(&B_csr);
+    freeHashTable(table);  
 
     return C;
 }
@@ -71,8 +81,13 @@ int main(int argc, char *argv[]) {
     double cpu_time_used;
     start = clock();
 
+    SparseMatrixCSR A_csr, B_csr;
+    // Convert COO matrices to CSR format
+    A_csr = COOtoCSR(A);
+    B_csr = COOtoCSR(B);
+
     // Multiply A and B
-    C = multiplySparseMatrixParallel(&A, &B);
+    C = multiplySparseMatrixParallel(A_csr, B_csr);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -86,9 +101,7 @@ int main(int argc, char *argv[]) {
 
     printf("\nI> Total multiplication execution time: %f seconds\n", cpu_time_used);
 
-    // Free the memory
-    freeSparseMatrix(&A);
-    freeSparseMatrix(&B);
+    // Free the memor
     freeSparseMatrix(&C);
 
     return 0;

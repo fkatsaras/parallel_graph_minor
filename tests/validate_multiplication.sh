@@ -58,8 +58,8 @@ run_and_time() {
 }
 
 # Matrix arguments
-MATRIX_A="${TEST_DIR}/A.mtx.sty"
-MATRIX_B="${TEST_DIR}/B.mtx.sty"
+MATRIX_A="../matrices/e40r2000.mtx ../matrices/e40r2000.mtx "
+MATRIX_B=../matrices/e40r2000.mtx ../matrices/e40r2000.mtx 
 MATRIX_C="${TEST_DIR}/C.mtx.sty"
 
 # Implementation to compare against the serial version

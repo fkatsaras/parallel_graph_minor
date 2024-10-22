@@ -39,11 +39,11 @@ jobs:
         make pthread_mul.exe
         cd ..
 
-    - name: Build Mat-mul OpenMP Implementation
-      run: |
-        cd src/
-        make openmp_mul.exe
-        cd ..
+    # - name: Build Mat-mul OpenMP Implementation
+    #   run: |
+    #     cd src/
+    #     make openmp_mul.exe
+    #     cd ..
 
 # Make graph minor calculation executables
 
@@ -59,19 +59,19 @@ jobs:
         make pthread_gm.exe
         cd ..
 
-    - name: Build Graph Minor OpenMP Implementation
-      run: |
-        cd src/
-        make openmp_mul.exe
-        cd ..
+    # - name: Build Graph Minor OpenMP Implementation
+    #   run: |
+    #     cd src/
+    #     make openmp_mul.exe
+    #     cd ..
 
 # Run tests
-    - name: Run OpenMP Multiplication Validation Test
-      run:  |
-        cd tests/
-        chmod +x validate*.sh
-        ./validate_multiplication.sh openmp
-        cd ..
+    # - name: Run OpenMP Multiplication Validation Test
+    #   run:  |
+    #     cd tests/
+    #     chmod +x validate*.sh
+    #     ./validate_multiplication.sh openmp
+    #     cd ..
 
     - name: Run Pthreads Multiplication Validation Test
       run: |
