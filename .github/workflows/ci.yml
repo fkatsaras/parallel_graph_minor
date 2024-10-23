@@ -53,12 +53,6 @@ jobs:
         cd ..
 
 # Run tests
-    # - name: Debug Matrix Paths
-    #   run: |
-    #     echo "Checking matrix files..."
-    #     ls -l ../matrices/dictionary_28/dictionary_28.mtx
-    #     ls -l ../matrices/e40r2000.mtx
-    #     ls -l ../matrices/cage12/cage12.mtx
 
     # - name: Run Pthreads Multiplication Validation Test (Small size matrix)
     #   run: |

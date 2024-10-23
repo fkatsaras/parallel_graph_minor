@@ -77,9 +77,11 @@ echo "Serial: $serial_mul_time seconds"
 if (( $(echo "$impl_mul_time < $serial_mul_time" | bc -l) )); then
     diff=$(echo "$serial_mul_time - $impl_mul_time" | bc -l)
     echo "$IMPL implementation is faster than the serial implementation by $diff seconds"
+    exit 0
 elif (( $(echo "$impl_mul_time > $serial_mul_time" | bc -l) )); then
     diff=$(echo "$impl_mul_time - $serial_mul_time" | bc -l)
     echo "Serial implementation is faster than the $IMPL implementation by $diff seconds"
+    exit 1
 else
     echo "Execution times are the same."
 fi
