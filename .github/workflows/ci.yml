@@ -20,11 +20,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential gcc g++
 
-    - name: Install dependencies
-      run:  |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
-
 # Make matrix multiplication executables
 
     - name: Build Mat-mul Serial Implementation
@@ -34,18 +29,12 @@ jobs:
         chmod +x serial_mul.exe
         cd ..
 
-    - name: Build Mat-mul Pthreads implementation
+    - name: Build Mat-mul Pthreads Implementation
       run: |
         cd src/
         make pthread_mul.exe
         chmod +x pthread_mul.exe
         cd ..
-
-    # - name: Build Mat-mul OpenMP Implementation
-    #   run: |
-    #     cd src/
-    #     make openmp_mul.exe
-    #     cd ..
 
 # Make graph minor calculation executables
 
@@ -56,46 +45,31 @@ jobs:
         chmod +x serial_gm.exe
         cd ..
 
-    - name: Build Graph Minor Pthreads implementation
+    - name: Build Graph Minor Pthreads Implementation
       run: |
         cd src/
         make pthread_gm.exe
         chmod +x pthread_gm.exe
         cd ..
 
-    # - name: Build Graph Minor OpenMP Implementation
-    #   run: |
-    #     cd src/
-    #     make openmp_mul.exe
-    #     cd ..
-
 # Run tests
-
-    # Uncomment to run OpenMP Multiplication Validation Test
-    # - name: Run OpenMP Multiplication Validation Test
-    #   run: |
-    #     cd tests/
-    #     chmod +x validate*.sh
-    #     ./validate_multiplication.sh openmp
-    #     cd ..
 
     - name: Run Pthreads Multiplication Validation Test
       run: |
         cd tests/
         chmod +x ./validate*.sh
-        chmod 644 ./validate*.sh
 
         # Validate with small matrix
         echo "Validating with small matrix..."
-        ./validate_multiplication.sh pthread ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx || true
+        ./validate_multiplication.sh pthread ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx
         
         # Validate with medium matrix
         echo "Validating with medium matrix..."
-        ./validate_multiplication.sh pthread ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx || true
+        ./validate_multiplication.sh pthread ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx
         
         # Validate with large matrix
         echo "Validating with large matrix..."
-        ./validate_multiplication.sh pthread ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx || true
+        ./validate_multiplication.sh pthread ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx
         
         cd ..
 
@@ -104,16 +78,15 @@ jobs:
     #   run: |
     #     cd tests/
     #     chmod +x validate*.sh
-    #     chmod 644 validate*.sh
 
     #     # Validate with small matrix
     #     echo "Validating with small matrix..."
-    #     ./validate_multiplication.sh openmp ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx || true
+    #     ./validate_multiplication.sh openmp ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx
 
     #     # Validate with medium matrix
     #     echo "Validating with medium matrix..."
-    #     ./validate_multiplication.sh openmp ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx || true
+    #     ./validate_multiplication.sh openmp ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx
 
     #     # Validate with large matrix
     #     echo "Validating with large matrix..."
-    #     ./validate_multiplication.sh openmp ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx || true
+    #     ./validate_multiplication.sh openmp ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx
