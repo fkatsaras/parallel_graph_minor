@@ -61,7 +61,7 @@ jobs:
 
         # Validate with small matrix
         echo "Validating with small matrix..."
-        ./validate_multiplication.sh pthread ./matrices/dictionary_28/dictionary_28.mtx ./matrices/dictionary_28/dictionary_28.mtx
+        ./validate_multiplication.sh pthread ../matrices/dictionary_28/dictionary_28.mtx ../matrices/dictionary_28/dictionary_28.mtx
 
         cd ..
     - name: Run Pthreads Multiplication Validation Test (Medium size matrix)
@@ -71,7 +71,7 @@ jobs:
 
         # Validate with medium matrix
         echo "Validating with medium matrix..."
-        ./validate_multiplication.sh pthread ./matrices/e40r2000.mtx ./matrices/e40r2000.mtx
+        ./validate_multiplication.sh pthread ../matrices/e40r2000.mtx ../matrices/e40r2000.mtx
         cd ..
     
     - name: Run Pthreads Multiplication Validation Test (Large size matrix)
@@ -81,7 +81,7 @@ jobs:
  
         # Validate with large matrix
         echo "Validating with large matrix..."
-        ./validate_multiplication.sh pthread ./matrices/cage12/cage12.mtx ./matrices/cage12/cage12.mtx
+        ./validate_multiplication.sh pthread ../matrices/cage12/cage12.mtx ../matrices/cage12/cage12.mtx
         cd ..
     
 
